@@ -1,0 +1,17 @@
+config_version: 1
+server:
+  name: stdio:python examples/most-basic/echo_server.py
+  type: stdio
+allowed_tools:
+  echo:
+    description: Echo the input text
+    server: stdio:python examples/most-basic/echo_server.py
+    checksum: b10590aa01caf86b8923328f929b0644b8974d3891d191fdb9c5fb30b39b31b0
+  add:
+    description: Add two integers
+    server: stdio:python examples/most-basic/echo_server.py
+    checksum: ff7442d5e907a6eaff7d4fc19fd86bcd986b578d1c191617632ee789e50967d9
+  subtract:
+    description: Subtract two integers
+    server: stdio:python examples/most-basic/echo_server.py
+    checksum: eb7d3b5ba31c894ab265411b5dc3a2a797dd8fbcae4d64e217ce7e4979dd6d2a

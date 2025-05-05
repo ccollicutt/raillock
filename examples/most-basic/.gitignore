@@ -1,0 +1,16 @@
+# Ignore Python cache and venv
+__pycache__/
+*.pyc
+.venv/
+
+# Ignore log files
+*.log
+
+# Ignore fastmcp directory
+fastmcp/
+
+# Ignore dotenv and environment files
+.env
+
+.envrc
+.cursor

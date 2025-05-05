@@ -1,0 +1,39 @@
+name: Test
+
+# version 1
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Create virtual environment for main project
+        run: uv venv .venv --python 3.11
+
+      - name: Set up dependencies with uv
+        run: uv pip install -e ".[dev]" --python .venv/bin/python
+
+      - name: "Debug: pip show mcp"
+        run: .venv/bin/pip show mcp || echo 'mcp NOT installed'
+
+      - name: "Debug: List installed packages in main venv"
+        run: uv pip list
+
+      - name: Run tests
+        run: source .venv/bin/activate && make test

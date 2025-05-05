@@ -1,3 +1,5 @@
+![RailLock Logo](img/raillock.png)
+
 # raillock
 
 Raillock is an MCP security CLI and Python library that can be used to validate MCP servers and the tools they expose. It's most basic function is to calculate the checksum of the tools the MCP server exposes, including their descriptions, and compare it with the checksum of the tools in the client's config file.

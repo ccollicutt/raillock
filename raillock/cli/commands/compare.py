@@ -7,6 +7,7 @@ from raillock.client import RailLockClient
 from raillock.config import RailLockConfig
 from raillock.exceptions import RailLockError
 from raillock.mcp_utils import get_tools_via_sse
+from raillock.utils import calculate_tool_checksum
 
 
 def run_compare(args):
@@ -26,9 +27,9 @@ def run_compare(args):
                 server_tools = {
                     t.name: {
                         "description": t.description,
-                        "checksum": hashlib.sha256(
-                            f"{args.server}:{t.name}:{t.description}".encode("utf-8")
-                        ).hexdigest(),
+                        "checksum": calculate_tool_checksum(
+                            t.name, t.description, args.server
+                        ),
                     }
                     for t in tools
                 }

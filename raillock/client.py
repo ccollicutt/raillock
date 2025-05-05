@@ -14,6 +14,7 @@ from requests.exceptions import RequestException
 
 from .config import RailLockConfig
 from .exceptions import RailLockError
+from .utils import calculate_tool_checksum
 
 
 class RailLockClient:
@@ -135,8 +136,7 @@ class RailLockClient:
 
     def _calculate_checksum(self, tool_name: str, description: str) -> str:
         """Calculate the checksum for a tool."""
-        data = f"{tool_name}:{description}".encode("utf-8")
-        return hashlib.sha256(data).hexdigest()
+        return calculate_tool_checksum(tool_name, description)
 
     def filter_tools(self, tools):
         """

@@ -5,8 +5,26 @@ name: Test
 on:
   push:
     branches: [main]
+    paths:
+      - "examples/**"
+      - "raillock/**"
+      - "tests/**"
+      - ".github/workflows/**"
+      - "Makefile"
+      - "pyproject.toml"
+      - "setup.py"
+      - "uv.lock"
   pull_request:
     branches: [main]
+    paths:
+      - "examples/**"
+      - "raillock/**"
+      - "tests/**"
+      - ".github/workflows/**"
+      - "Makefile"
+      - "pyproject.toml"
+      - "setup.py"
+      - "uv.lock"
 
 jobs:
   test:

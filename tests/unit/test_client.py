@@ -7,6 +7,7 @@ from raillock.exceptions import RailLockError
 import json
 import shutil
 import os
+from raillock.utils import calculate_tool_checksum
 
 
 try:
@@ -29,9 +30,21 @@ class DummyTool:
 
 
 def test_raillock_client_filter_tools():
-    config = RailLockConfig({"echo": "*", "add": "*"})
+    config = RailLockConfig(
+        {
+            "echo": calculate_tool_checksum("echo", "desc"),
+            "add": calculate_tool_checksum("add", "desc"),
+        }
+    )
     client = RailLockClient(config)
-    tools = [DummyTool("echo"), DummyTool("add"), DummyTool("not_allowed")]
+    tools = [
+        DummyTool("echo", "desc"),
+        DummyTool("add", "desc"),
+        DummyTool("not_allowed", "desc"),
+    ]
+    # Simulate server tool dicts with correct checksums
+    for t in tools:
+        t.checksum = calculate_tool_checksum(t.name, t.description)
     filtered = client.filter_tools(tools)
     filtered_names = [t.name for t in filtered]
     assert "echo" in filtered_names
@@ -40,17 +53,23 @@ def test_raillock_client_filter_tools():
 
 
 def test_validate_tools_and_is_tool_allowed():
-    config = RailLockConfig({"echo": "*"})
+    config = RailLockConfig({"echo": calculate_tool_checksum("echo", "desc")})
     client = RailLockClient(config)
+    echo_checksum = calculate_tool_checksum("echo", "desc")
+    add_checksum = calculate_tool_checksum("add", "desc")
     client._available_tools = {
-        "echo": {"description": "desc", "checksum": "*"},
-        "add": {"description": "desc", "checksum": "*"},
+        "echo": {"description": "desc", "checksum": echo_checksum},
+        "add": {"description": "desc", "checksum": add_checksum},
     }
     validated = client.validate_tools()
     assert "echo" in validated
     assert "add" not in validated
-    assert client._is_tool_allowed("echo", {"checksum": "*"})
-    assert not client._is_tool_allowed("add", {"checksum": "*"})
+    assert client._is_tool_allowed(
+        "echo", {"description": "desc", "checksum": echo_checksum}
+    )
+    assert not client._is_tool_allowed(
+        "add", {"description": "desc", "checksum": add_checksum}
+    )
 
 
 def test_parse_tools_and_calculate_checksum():
@@ -181,39 +200,31 @@ def test_checksum_matching():
     """Test that a tool with a matching checksum in config is recognized as allowed."""
     name = "echo"
     description = "desc"
-    # Create a client and calculate the checksum as the server would
-    client = RailLockClient(RailLockConfig())
-    checksum = client._calculate_checksum(name, description)
-    # Create a config with the correct checksum (just the checksum string)
+    checksum = calculate_tool_checksum(name, description)
     config = RailLockConfig({name: checksum})
     client = RailLockClient(config)
-    # Simulate available tools from server
     client._available_tools = {name: {"description": description, "checksum": checksum}}
-    # Validate tools: should include 'echo'
     validated = client.validate_tools()
     assert name in validated
-    # Check is_tool_allowed directly
-    assert client._is_tool_allowed(name, {"checksum": checksum})
+    assert client._is_tool_allowed(
+        name, {"description": description, "checksum": checksum}
+    )
 
 
 def test_checksum_not_matching():
     """Test that a tool with a non-matching checksum in config is not recognized as allowed."""
     name = "echo"
     description = "desc"
-    # Create a client and calculate the checksum as the server would
-    client = RailLockClient(RailLockConfig())
-    checksum = client._calculate_checksum(name, description)
-    # Use a different checksum in the config
+    checksum = calculate_tool_checksum(name, description)
     wrong_checksum = "0" * 64
     config = RailLockConfig({name: wrong_checksum})
     client = RailLockClient(config)
-    # Simulate available tools from server
     client._available_tools = {name: {"description": description, "checksum": checksum}}
-    # Validate tools: should NOT include 'echo'
     validated = client.validate_tools()
     assert name not in validated
-    # Check is_tool_allowed directly
-    assert not client._is_tool_allowed(name, {"checksum": checksum})
+    assert not client._is_tool_allowed(
+        name, {"description": description, "checksum": checksum}
+    )
 
 
 def test_compare_logic_with_nested_config():
@@ -257,3 +268,24 @@ def test_compare_logic_with_nested_config():
     assert results[0][0] == "add" and results[0][3] == "✘"
     assert results[1][0] == "delete_folder" and results[1][3] == "✘"
     assert results[2][0] == "echo" and results[2][3] == "✔"
+
+
+def test_malicious_overrides_allowed():
+    config = RailLockConfig(
+        allowed_tools={"echo": {"description": "desc", "checksum": "abc"}},
+        malicious_tools={"echo": {"description": "desc", "checksum": "abc"}},
+    )
+    client = RailLockClient(config)
+    # Simulate available tools
+    client._available_tools = {"echo": {"description": "desc", "checksum": "abc"}}
+    # Should not be allowed because it's also malicious
+    validated = client.validate_tools()
+    assert "echo" not in validated
+
+    # Also test filter_tools
+    class Tool:
+        def __init__(self, name):
+            self.name = name
+
+    filtered = client.filter_tools([Tool("echo")])
+    assert filtered == []

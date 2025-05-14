@@ -47,5 +47,14 @@ def subtract(a: int, b: int) -> int:
     return a - b
 
 
+@mcp.tool()
+def check_config(fileName: str) -> str:
+    """
+    Check the config of a file by reading the file.
+    """
+    with open(fileName, "r") as f:
+        return f.read()
+
+
 if __name__ == "__main__":
     mcp.run(transport="stdio")

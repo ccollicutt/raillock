@@ -3,11 +3,16 @@ import traceback
 import hashlib
 import yaml
 import asyncio
+import textwrap
 from raillock.client import RailLockClient
 from raillock.config import RailLockConfig
 from raillock.exceptions import RailLockError
 from raillock.mcp_utils import get_tools_via_sse
 from raillock.utils import calculate_tool_checksum
+
+GREEN = "\033[92m"
+RED = "\033[91m"
+RESET = "\033[0m"
 
 
 def run_review(args):
@@ -17,8 +22,11 @@ def run_review(args):
         try:
             print(f"[DEBUG] Loading config from {args.config}")
             config = RailLockConfig.from_file(args.config)
+        except (ValueError, yaml.YAMLError) as e:
+            print(f"Error loading configuration: {e}", file=sys.stderr)
+            sys.exit(1)
         except Exception as e:
-            print(f"Error loading configuration: {str(e)}", file=sys.stderr)
+            print(f"Unexpected error: {e}", file=sys.stderr)
             traceback.print_exc()
             sys.exit(1)
     else:
@@ -52,6 +60,7 @@ def run_review(args):
             )
 
             def str_presenter(dumper, data):
+                # Always use block style for multi-line strings
                 if "\n" in data:
                     return dumper.represent_scalar(
                         "tag:yaml.org,2002:str", data, style="|"
@@ -63,6 +72,15 @@ def run_review(args):
                 return dumper.represent_scalar("tag:yaml.org,2002:str", data)
 
             yaml.add_representer(str, str_presenter)
+
+            # Dedent all descriptions before writing
+            for section in ("allowed_tools", "malicious_tools", "denied_tools"):
+                for tool in config_dict.get(section, {}).values():
+                    if "description" in tool and isinstance(tool["description"], str):
+                        tool["description"] = textwrap.dedent(
+                            tool["description"]
+                        ).strip("\n")
+
             with open(output_file, "w") as f:
                 yaml.safe_dump(config_dict, f, sort_keys=False, allow_unicode=True)
             print(f"RailLock config saved to {output_file}")
@@ -70,45 +88,23 @@ def run_review(args):
         if getattr(args, "sse", False):
             # Use MCP protocol for SSE
             async def review_sse():
-                tools, real_server_name = await get_tools_via_sse(args.server)
-                print("[DEBUG] Raw tools from server:", tools)
-                config_dict = {
-                    "config_version": 1,
-                    "server": {
-                        "name": real_server_name or args.server,
-                        "type": "sse",
-                    },
-                    "allowed_tools": {},
-                }
-                if getattr(args, "yes", False):
-                    for tool in tools:
-                        name = getattr(tool, "name", None)
-                        desc = getattr(tool, "description", "")
-                        data = f"{config_dict['server']['name']}:{name}:{desc}".encode(
-                            "utf-8"
-                        )
-                        checksum = calculate_tool_checksum(
-                            name, desc, config_dict["server"]["name"]
-                        )
-                        config_dict["allowed_tools"][name] = {
-                            "description": desc,
-                            "server": config_dict["server"]["name"],
-                            "checksum": checksum,
-                        }
-                    write_config(config_dict)
-                else:
-                    for tool in tools:
-                        name = getattr(tool, "name", None)
-                        desc = getattr(tool, "description", "")
-                        print(f"\n{name}:")
-                        print(f"  Description: {desc}")
-                        yn = input(f"Allow tool '{name}'? [y/n]: ").strip().lower()
-                        if yn == "y":
-                            data = (
-                                f"{config_dict['server']['name']}:{name}:{desc}".encode(
-                                    "utf-8"
-                                )
-                            )
+                try:
+                    tools, real_server_name = await get_tools_via_sse(args.server)
+                    print("[DEBUG] Raw tools from server:", tools)
+                    config_dict = {
+                        "config_version": 1,
+                        "server": {
+                            "name": real_server_name or args.server,
+                            "type": "sse",
+                        },
+                        "allowed_tools": {},
+                        "malicious_tools": {},
+                        "denied_tools": {},
+                    }
+                    if getattr(args, "yes", False):
+                        for tool in tools:
+                            name = getattr(tool, "name", None)
+                            desc = getattr(tool, "description", "")
                             checksum = calculate_tool_checksum(
                                 name, desc, config_dict["server"]["name"]
                             )
@@ -117,10 +113,40 @@ def run_review(args):
                                 "server": config_dict["server"]["name"],
                                 "checksum": checksum,
                             }
-                    if config_dict["allowed_tools"]:
                         write_config(config_dict)
                     else:
-                        print("No tools allowed; config not written.")
+                        for tool in tools:
+                            name = getattr(tool, "name", None)
+                            desc = getattr(tool, "description", "")
+                            print(f"\n{name}:")
+                            print(f"  Description: {desc}")
+                            ynmi = (
+                                input(
+                                    f"Allow tool '{name}'? {GREEN}[y]{RESET}/{RED}m{RESET}/n/i: "
+                                )
+                                .strip()
+                                .lower()
+                            )
+                            checksum = calculate_tool_checksum(
+                                name, desc, config_dict["server"]["name"]
+                            )
+                            tool_entry = {
+                                "description": desc,
+                                "server": config_dict["server"]["name"],
+                                "checksum": checksum,
+                            }
+                            if ynmi == "y":
+                                config_dict["allowed_tools"][name] = tool_entry
+                            elif ynmi == "m":
+                                config_dict["malicious_tools"][name] = tool_entry
+                            elif ynmi == "n":
+                                config_dict["denied_tools"][name] = tool_entry
+                            # else: ignore (do not record)
+                        # Always write all three sections
+                        write_config(config_dict)
+                except Exception as e:
+                    print(f"Error: {str(e)}", file=sys.stderr)
+                    sys.exit(1)
 
             try:
                 asyncio.run(review_sse())
@@ -159,11 +185,9 @@ def run_review(args):
         sys.exit(130)
     except RailLockError as e:
         print(f"Error: {str(e)}", file=sys.stderr)
-        traceback.print_exc()
         sys.exit(1)
     except Exception as e:
-        print(f"[DEBUG] Unexpected error: {e}", file=sys.stderr)
-        traceback.print_exc()
+        print(f"Error: {str(e)}", file=sys.stderr)
         sys.exit(1)
     finally:
         client.close()

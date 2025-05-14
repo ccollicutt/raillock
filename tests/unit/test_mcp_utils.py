@@ -8,6 +8,7 @@ from raillock.mcp_utils import (
 from raillock.config import RailLockConfig
 from raillock.client import RailLockClient
 from unittest.mock import patch, MagicMock, AsyncMock
+from raillock.utils import calculate_tool_checksum
 
 
 class DummySession:
@@ -16,12 +17,28 @@ class DummySession:
             def __init__(self, name, description=None):
                 self.name = name
                 self.description = description
+                self.checksum = calculate_tool_checksum(name, description or "")
 
-        return type("Resp", (), {"tools": [Tool("echo", None), Tool("add", "desc")]})()
+        return type(
+            "Resp",
+            (),
+            {
+                "tools": [
+                    Tool("echo", "desc"),
+                    Tool("add", "desc"),
+                    Tool("not_allowed", "desc"),
+                ]
+            },
+        )()
 
 
 def test_raillock_session_wrapper_filters_and_injects():
-    config = RailLockConfig({"echo": "*", "add": "*"})
+    config = RailLockConfig(
+        {
+            "echo": calculate_tool_checksum("echo", "desc"),
+            "add": calculate_tool_checksum("add", "desc"),
+        }
+    )
     rail_client = RailLockClient(config)
     wrapper = RailLockSessionWrapper(DummySession(), rail_client)
     import asyncio
@@ -30,6 +47,7 @@ def test_raillock_session_wrapper_filters_and_injects():
     names = [t.name for t in tools]
     assert "echo" in names
     assert "add" in names
+    assert "not_allowed" not in names
     for t in tools:
         assert t.description is not None
 
@@ -41,20 +59,26 @@ def test_monkeypatch_raillock_tools():
                 def __init__(self, name, description=None):
                     self.name = name
                     self.description = description
+                    self.checksum = calculate_tool_checksum(name, description or "")
 
             return type(
                 "Resp",
                 (),
                 {
                     "tools": [
-                        Tool("echo", None),
+                        Tool("echo", "desc"),
                         Tool("add", "desc"),
-                        Tool("not_allowed", None),
+                        Tool("not_allowed", "desc"),
                     ]
                 },
             )()
 
-    config = RailLockConfig({"echo": "*", "add": "*"})
+    config = RailLockConfig(
+        {
+            "echo": calculate_tool_checksum("echo", "desc"),
+            "add": calculate_tool_checksum("add", "desc"),
+        }
+    )
     rail_client = RailLockClient(config)
     session = DummySession()
     monkeypatch_raillock_tools(session, rail_client)

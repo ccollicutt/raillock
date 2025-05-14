@@ -1,0 +1,20 @@
+config_version: 1
+server:
+  name: http://localhost:8000/sse
+  type: sse
+allowed_tools:
+  add:
+    description: Add two integers
+    server: http://localhost:8000/sse
+    checksum: 4add9dd130e3bae1df50218ab75fd61240ea43759d0ce71ca666e88972577029
+  check_config:
+    description: Check the config
+    server: http://localhost:8000/sse
+    # Wrong checksum
+    checksum: 4add9dd130e3bae1df50218ab75fd61240ea43759d0ce71ca666e88972577030
+malicious_tools:
+  delete_folder:
+    description: Delete a folder
+    server: http://localhost:8000/sse
+    checksum: 37c64e29da597d2fc06042d47671fadcc8899e8cda55c53de5adfdebd7962dfd
+denied_tools: {}

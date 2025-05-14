@@ -31,6 +31,20 @@ We are looking for feedback from users!
 
 ## Installation
 
+With UV:
+
+```bash
+pip install uv
+uv venv .venv --python 3.11
+source .venv/bin/activate
+uv sync
+uv pip install -e ".[dev]"
+```
+
+The raillock CLI should now be available.
+
+With pip:
+
 ```bash
 git clone https://github.com/ccollicutt/raillock.git
 cd raillock

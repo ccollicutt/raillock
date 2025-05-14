@@ -95,10 +95,16 @@ class RailLockClient:
             self._process = None
 
     def validate_tools(self) -> Dict[str, dict]:
-        """Validate available tools against the configuration."""
+        """Validate available tools against the configuration, with malicious and denied taking precedence."""
         self._validated_tools = {}
 
         for tool_name, tool_data in self._available_tools.items():
+            # Malicious tools are never allowed
+            if tool_name in self.config.malicious_tools:
+                continue
+            # Denied tools are not allowed
+            if tool_name in self.config.denied_tools:
+                continue
             if self._is_tool_allowed(tool_name, tool_data):
                 self._validated_tools[tool_name] = tool_data
 
@@ -128,11 +134,20 @@ class RailLockClient:
 
     def _is_tool_allowed(self, tool_name: str, tool_data: dict) -> bool:
         """Check if a tool is allowed based on the configuration."""
+        # Only tools in allowed_tools are considered allowed
         if tool_name not in self.config.allowed_tools:
             return False
-
-        expected_checksum = self.config.allowed_tools[tool_name]
-        return tool_data["checksum"] == expected_checksum
+        allowed_val = self.config.allowed_tools[tool_name]
+        if isinstance(allowed_val, dict):
+            expected_checksum = allowed_val["checksum"]
+            server_name = allowed_val.get("server")
+        else:
+            expected_checksum = allowed_val
+            server_name = None
+        actual_checksum = calculate_tool_checksum(
+            tool_name, tool_data["description"], server_name
+        )
+        return actual_checksum == expected_checksum
 
     def _calculate_checksum(self, tool_name: str, description: str) -> str:
         """Calculate the checksum for a tool."""
@@ -140,16 +155,31 @@ class RailLockClient:
 
     def filter_tools(self, tools):
         """
-        Return only tools allowed by the RailLock config.
-
+        Return only tools allowed by the RailLock config, with malicious and denied taking precedence, and enforcing checksum.
         Args:
             tools (list): List of tool objects (must have .name attribute).
-
         Returns:
             list: Filtered list of allowed tool objects.
         """
         allowed = set(self.config.allowed_tools)
-        return [tool for tool in tools if getattr(tool, "name", None) in allowed]
+        malicious = set(self.config.malicious_tools)
+        denied = set(self.config.denied_tools)
+        return [
+            tool
+            for tool in tools
+            if (
+                getattr(tool, "name", None) in allowed
+                and getattr(tool, "name", None) not in malicious
+                and getattr(tool, "name", None) not in denied
+                and self._is_tool_allowed(
+                    getattr(tool, "name", None),
+                    {
+                        "description": getattr(tool, "description", ""),
+                        "checksum": getattr(tool, "checksum", ""),
+                    },
+                )
+            )
+        ]
 
     def test_server(self, server_url: str, timeout: int = 5) -> bool:
         """Test if the server is up and running before connecting."""

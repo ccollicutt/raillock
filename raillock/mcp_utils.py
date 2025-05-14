@@ -13,6 +13,8 @@ import asyncio
 from mcp import ClientSession
 from mcp.client.sse import sse_client
 import logging
+from raillock.exceptions import RailLockError
+from urllib.parse import urlparse
 
 
 def monkeypatch_raillock_tools(session, rail_client):
@@ -67,12 +69,27 @@ async def get_tools_via_sse(server_url):
     Returns:
         tuple: (list of tool objects, server name or None)
     """
-    async with sse_client(server_url) as streams:
-        async with ClientSession(streams[0], streams[1]) as session:
-            await session.initialize()
-            response = await session.list_tools()
-            server_name = get_server_name_from_session(session)
-            return response.tools, server_name
+    try:
+        parsed = urlparse(server_url)
+        if parsed.scheme not in ("http", "https"):
+            raise RailLockError(f"Invalid server URL scheme: {parsed.scheme}")
+        async with sse_client(server_url) as streams:
+            async with ClientSession(streams[0], streams[1]) as session:
+                await session.initialize()
+                response = await session.list_tools()
+                server_name = get_server_name_from_session(session)
+                return response.tools, server_name
+    except RailLockError:
+        raise
+    except (OSError, ConnectionRefusedError) as e:
+        raise RailLockError(f"Failed to reach server: {e}")
+    except Exception as e:
+        msg = str(e)
+        if "404" in msg:
+            raise RailLockError("Failed to reach server: 404")
+        if "connection refused" in msg.lower():
+            raise RailLockError("Failed to reach server: connection refused")
+        raise RailLockError(f"Failed to reach server: {e}")
 
 
 class RailLockSessionWrapper:

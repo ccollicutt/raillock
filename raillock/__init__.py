@@ -8,7 +8,7 @@ This library provides functionality to:
 """
 
 __version__ = "0.1.0"
-__author__ = "Your Name"
+__author__ = "Curtis Collicutt"
 __license__ = "MIT"
 
 from .client import RailLockClient

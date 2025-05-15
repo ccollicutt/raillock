@@ -56,15 +56,35 @@ def run_compare(args):
                         on_server = tool in server_tools
                         allowed = tool in allowed_tools
                         allowed_checksum = None
-                        tool_type = (
-                            "allowed"
-                            if tool in allowed_tools
-                            else (
-                                "malicious"
-                                if tool in malicious_tools
-                                else ("denied" if tool in denied_tools else "unknown")
-                            )
-                        )
+                        # Check for malicious and denied by name+checksum
+                        is_malicious = False
+                        is_denied = False
+                        name_in_section = False
+                        checksum_match = False
+                        if tool in malicious_tools and on_server:
+                            name_in_section = True
+                            mal_entry = malicious_tools[tool]
+                            if isinstance(mal_entry, dict) and "checksum" in mal_entry:
+                                if (
+                                    server_tools[tool]["checksum"]
+                                    == mal_entry["checksum"]
+                                ):
+                                    is_malicious = True
+                                    checksum_match = True
+                                else:
+                                    checksum_match = False
+                        if tool in denied_tools and on_server:
+                            name_in_section = True
+                            den_entry = denied_tools[tool]
+                            if isinstance(den_entry, dict) and "checksum" in den_entry:
+                                if (
+                                    server_tools[tool]["checksum"]
+                                    == den_entry["checksum"]
+                                ):
+                                    is_denied = True
+                                    checksum_match = True
+                                else:
+                                    checksum_match = False
                         if allowed:
                             allowed_val = allowed_tools[tool]
                             if isinstance(allowed_val, dict):
@@ -72,14 +92,28 @@ def run_compare(args):
                                     allowed_checksum = allowed_val["checksum"]
                             elif isinstance(allowed_val, str):
                                 allowed_checksum = allowed_val
-                        server_checksum = (
-                            server_tools[tool]["checksum"] if on_server else None
-                        )
-                        checksum_match = (
-                            on_server
-                            and allowed
-                            and allowed_checksum is not None
-                            and server_checksum == allowed_checksum
+                            if on_server and allowed_checksum is not None:
+                                if server_tools[tool]["checksum"] == allowed_checksum:
+                                    checksum_match = True
+                                else:
+                                    checksum_match = False
+                                name_in_section = True
+                        tool_type = (
+                            "allowed"
+                            if allowed and checksum_match
+                            else (
+                                "malicious"
+                                if is_malicious
+                                else (
+                                    "denied"
+                                    if is_denied
+                                    else (
+                                        "unknown (checksum mismatch)"
+                                        if name_in_section and not checksum_match
+                                        else "unknown"
+                                    )
+                                )
+                            )
                         )
                         desc = (
                             server_tools[tool]["description"]
@@ -90,19 +124,13 @@ def run_compare(args):
                                 else ""
                             )
                         )
-                        if tool_type == "malicious":
-                            type_str = f"\033[91mmalicious\033[0m"
-                        elif tool_type == "denied":
-                            type_str = f"\033[93mdenied\033[0m"
-                        else:
-                            type_str = f"\033[92mallowed\033[0m"
                         rows.append(
                             [
                                 tool,
                                 check(on_server),
                                 check(allowed),
                                 check(checksum_match),
-                                type_str,
+                                tool_type,
                                 desc,
                             ]
                         )
@@ -139,15 +167,29 @@ def run_compare(args):
                 on_server = tool in server_tools
                 allowed = tool in allowed_tools
                 allowed_checksum = None
-                tool_type = (
-                    "allowed"
-                    if tool in allowed_tools
-                    else (
-                        "malicious"
-                        if tool in malicious_tools
-                        else ("denied" if tool in denied_tools else "unknown")
-                    )
-                )
+                # Check for malicious and denied by name+checksum
+                is_malicious = False
+                is_denied = False
+                name_in_section = False
+                checksum_match = False
+                if tool in malicious_tools and on_server:
+                    name_in_section = True
+                    mal_entry = malicious_tools[tool]
+                    if isinstance(mal_entry, dict) and "checksum" in mal_entry:
+                        if server_tools[tool]["checksum"] == mal_entry["checksum"]:
+                            is_malicious = True
+                            checksum_match = True
+                        else:
+                            checksum_match = False
+                if tool in denied_tools and on_server:
+                    name_in_section = True
+                    den_entry = denied_tools[tool]
+                    if isinstance(den_entry, dict) and "checksum" in den_entry:
+                        if server_tools[tool]["checksum"] == den_entry["checksum"]:
+                            is_denied = True
+                            checksum_match = True
+                        else:
+                            checksum_match = False
                 if allowed:
                     allowed_val = allowed_tools[tool]
                     if isinstance(allowed_val, dict):
@@ -155,12 +197,28 @@ def run_compare(args):
                             allowed_checksum = allowed_val["checksum"]
                     elif isinstance(allowed_val, str):
                         allowed_checksum = allowed_val
-                server_checksum = server_tools[tool]["checksum"] if on_server else None
-                checksum_match = (
-                    on_server
-                    and allowed
-                    and allowed_checksum is not None
-                    and server_checksum == allowed_checksum
+                    if on_server and allowed_checksum is not None:
+                        if server_tools[tool]["checksum"] == allowed_checksum:
+                            checksum_match = True
+                        else:
+                            checksum_match = False
+                        name_in_section = True
+                tool_type = (
+                    "allowed"
+                    if allowed and checksum_match
+                    else (
+                        "malicious"
+                        if is_malicious
+                        else (
+                            "denied"
+                            if is_denied
+                            else (
+                                "unknown (checksum mismatch)"
+                                if name_in_section and not checksum_match
+                                else "unknown"
+                            )
+                        )
+                    )
                 )
                 desc = (
                     server_tools[tool]["description"]
@@ -171,19 +229,13 @@ def run_compare(args):
                         else ""
                     )
                 )
-                if tool_type == "malicious":
-                    type_str = f"\033[91mmalicious\033[0m"
-                elif tool_type == "denied":
-                    type_str = f"\033[93mdenied\033[0m"
-                else:
-                    type_str = f"\033[92mallowed\033[0m"
                 rows.append(
                     [
                         tool,
                         check(on_server),
                         check(allowed),
                         check(checksum_match),
-                        type_str,
+                        tool_type,
                         desc,
                     ]
                 )

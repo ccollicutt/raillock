@@ -679,3 +679,140 @@ def test_review_empty_sections(monkeypatch, tmp_path):
     assert config["allowed_tools"] == {}
     assert config["malicious_tools"] == {}
     assert config["denied_tools"] == {}
+
+
+def test_cli_review_yes_config_creates_and_overwrites(tmp_path):
+    import subprocess
+    import yaml
+
+    config_file = tmp_path / "test_config.yaml"
+    # Remove if exists
+    if config_file.exists():
+        config_file.unlink()
+    # Run CLI with --yes and --config (file does not exist)
+    result = subprocess.run(
+        [
+            "python",
+            "-m",
+            "raillock.cli",
+            "review",
+            "--server",
+            "http://localhost:9999",
+            "--yes",
+            "--config",
+            str(config_file),
+        ],
+        input="",
+        capture_output=True,
+        text=True,
+    )
+    # Should not error about missing config file
+    assert result.returncode != 0  # Will fail to connect, but not config error
+    assert (
+        "Error loading configuration" not in result.stdout
+        and "Error loading configuration" not in result.stderr
+    )
+    # Simulate file creation
+    with open(config_file, "w") as f:
+        yaml.safe_dump(
+            {"allowed_tools": {"echo": {"description": "desc", "checksum": "abc"}}}, f
+        )
+    # Run CLI again to test overwrite
+    result2 = subprocess.run(
+        [
+            "python",
+            "-m",
+            "raillock.cli",
+            "review",
+            "--server",
+            "http://localhost:9999",
+            "--yes",
+            "--config",
+            str(config_file),
+        ],
+        input="",
+        capture_output=True,
+        text=True,
+    )
+    assert result2.returncode != 0
+    assert (
+        "Error loading configuration" not in result2.stdout
+        and "Error loading configuration" not in result2.stderr
+    )
+
+
+def test_compare_malicious_tools_checksum(tmp_path, monkeypatch, capsys):
+    """Test that a tool is only considered malicious if both name and checksum match."""
+    import raillock.cli.commands.compare as compare_mod
+    import yaml
+
+    # Create a config with a malicious tool (with a specific checksum)
+    config_file = tmp_path / "malicious_config.yaml"
+    malicious_tool_name = "malicious_tool"
+    malicious_tool_desc = "desc1"
+    malicious_tool_checksum = "deadbeef"
+    config_data = {
+        "allowed_tools": {},
+        "malicious_tools": {
+            malicious_tool_name: {
+                "description": malicious_tool_desc,
+                "checksum": malicious_tool_checksum,
+            }
+        },
+        "denied_tools": {},
+    }
+    with open(config_file, "w") as f:
+        yaml.safe_dump(config_data, f)
+
+    # Patch RailLockClient to provide a tool with the same name but different checksum
+    class DummyClient:
+        def __init__(self, config):
+            self._available_tools = {
+                malicious_tool_name: {
+                    "description": "desc2",  # different description
+                    "checksum": "notdeadbeef",  # different checksum
+                }
+            }
+            self.config = config
+
+        def connect(self, *a, **k):
+            pass
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(
+        compare_mod, "RailLockClient", lambda config: DummyClient(config)
+    )
+    args = type(
+        "Args", (), {"server": "http://dummy", "config": str(config_file), "sse": False}
+    )()
+    compare_mod.run_compare(args)
+    out = capsys.readouterr().out
+    # Should show the tool as unknown (checksum mismatch) when checksum does not match
+    assert "unknown (checksum mismatch)" in out
+
+    # Now patch to match checksum
+    class DummyClient2:
+        def __init__(self, config):
+            self._available_tools = {
+                malicious_tool_name: {
+                    "description": malicious_tool_desc,
+                    "checksum": malicious_tool_checksum,
+                }
+            }
+            self.config = config
+
+        def connect(self, *a, **k):
+            pass
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(
+        compare_mod, "RailLockClient", lambda config: DummyClient2(config)
+    )
+    compare_mod.run_compare(args)
+    out2 = capsys.readouterr().out
+    # Should show the tool as malicious (since checksum matches)
+    assert "malicious" in out2

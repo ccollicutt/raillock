@@ -16,21 +16,28 @@ RESET = "\033[0m"
 
 
 def run_review(args):
-    # Load configuration if provided
+    # If --yes is set, treat --config as output file, not input
     config = None
-    if getattr(args, "config", None):
-        try:
-            print(f"[DEBUG] Loading config from {args.config}")
-            config = RailLockConfig.from_file(args.config)
-        except (ValueError, yaml.YAMLError) as e:
-            print(f"Error loading configuration: {e}", file=sys.stderr)
-            sys.exit(1)
-        except Exception as e:
-            print(f"Unexpected error: {e}", file=sys.stderr)
-            traceback.print_exc()
-            sys.exit(1)
-    else:
+    output_file = None
+    if getattr(args, "yes", False):
+        # --yes: config is output file, do not load
         config = RailLockConfig()
+        output_file = getattr(args, "config", None)
+    else:
+        # Not --yes: config is input file
+        if getattr(args, "config", None):
+            try:
+                print(f"[DEBUG] Loading config from {args.config}")
+                config = RailLockConfig.from_file(args.config)
+            except (ValueError, yaml.YAMLError) as e:
+                print(f"Error loading configuration: {e}", file=sys.stderr)
+                sys.exit(1)
+            except Exception as e:
+                print(f"Unexpected error: {e}", file=sys.stderr)
+                traceback.print_exc()
+                sys.exit(1)
+        else:
+            config = RailLockConfig()
 
     # Create client
     client = RailLockClient(config)
@@ -52,12 +59,16 @@ def run_review(args):
         )
 
         def write_config(config_dict):
-            output_file = (
-                input(
-                    "Enter output YAML config filename [raillock_config.yaml]: "
-                ).strip()
-                or "raillock_config.yaml"
-            )
+            nonlocal output_file
+            if output_file:
+                out_path = output_file
+            else:
+                out_path = (
+                    input(
+                        "Enter output YAML config filename [raillock_config.yaml]: "
+                    ).strip()
+                    or "raillock_config.yaml"
+                )
 
             def str_presenter(dumper, data):
                 # Always use block style for multi-line strings
@@ -81,9 +92,9 @@ def run_review(args):
                             tool["description"]
                         ).strip("\n")
 
-            with open(output_file, "w") as f:
+            with open(out_path, "w") as f:
                 yaml.safe_dump(config_dict, f, sort_keys=False, allow_unicode=True)
-            print(f"RailLock config saved to {output_file}")
+            print(f"RailLock config saved to {out_path}")
 
         if getattr(args, "sse", False):
             # Use MCP protocol for SSE

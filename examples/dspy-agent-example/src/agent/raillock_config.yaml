@@ -1,0 +1,39 @@
+config_version: 1
+server:
+  name: stdio:python examples/dspy-agent-example/mcp-server/server.py
+  type: stdio
+allowed_tools:
+  fetch_flight_info:
+    description:
+      Fetch flight information from origin to destination on the given
+      date
+    server: stdio:python examples/dspy-agent-example/mcp-server/server.py
+    checksum: 1ee21b7746a1182f654754eb493dd3cef462c5f873e884db3098d0e8449a33b4
+  fetch_itinerary:
+    description: Fetch a booked itinerary information from database
+    server: stdio:python examples/dspy-agent-example/mcp-server/server.py
+    checksum: 9588d370ef8613e544fb3f5cad364577f8b639a151c742e20477d44a67c0f2cf
+  pick_flight:
+    description: Pick up the best flight that matches users' request.
+    server: stdio:python examples/dspy-agent-example/mcp-server/server.py
+    checksum: 15dd930514f69e790bdb10fa9290b3e6e8abc9737718414fca2c77dc49ec9217
+  book_itinerary:
+    description: Book a flight on behalf of the user.
+    server: stdio:python examples/dspy-agent-example/mcp-server/server.py
+    checksum: 657cdfb89486568d64df90ca115557aece0dec8c3bb132e995bc874582ac88b4
+  cancel_itinerary:
+    description: Cancel an itinerary on behalf of the user.
+    server: stdio:python examples/dspy-agent-example/mcp-server/server.py
+    checksum: e080872d5ff09dc92e863bad0419ef5b1a230203c056036b4535de8e03cdbccf
+  get_user_info:
+    description: Fetch the user profile from database with given name.
+    server: stdio:python examples/dspy-agent-example/mcp-server/server.py
+    checksum: ca9e44ebee5c4de553e2a942bd74528ac99e0ce03640639184d0ae3678f67534
+  file_ticket:
+    description:
+      File a customer support ticket if this is something the agent cannot
+      handle. Returns the ticket id, not a confirmation number.
+    server: stdio:python examples/dspy-agent-example/mcp-server/server.py
+    checksum: 92631c113e14dc768f5fc13ec4c1ba1adeb7762ff22d5cede21e1d80a431586a
+malicious_tools: {}
+denied_tools: {}

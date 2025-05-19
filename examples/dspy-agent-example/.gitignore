@@ -1,0 +1,54 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+
+# uv lock and cache
+uv.lock
+requirements.lock
+.cache/
+
+# Editor and OS files
+*.swp
+*.swo
+*~
+.DS_Store
+.idea/
+.vscode/
+*.code-workspace
+
+# dotenv and secrets
+.env
+.envrc
+
+# Byte-compiled / optimized / DLL files
+*.pyc
+
+# Test and coverage outputs
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+
+# Build outputs
+dist/
+build/
+.eggs/
+*.egg-info/
+.eggs/
+
+.cursor

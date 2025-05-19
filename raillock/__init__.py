@@ -14,7 +14,22 @@ __license__ = "MIT"
 from .client import RailLockClient
 from .config import RailLockConfig
 from .exceptions import RailLockError
+from .utils import debug_print
 
 # Make raillock.commands a package for CLI subcommands
 
 __all__ = ["RailLockClient", "RailLockConfig", "RailLockError"]
+
+import os
+
+
+def is_debug():
+    return os.environ.get("RAILLOCK_DEBUG", "false").lower() == "true"
+
+
+# Print import path if debug is enabled
+if is_debug():
+    import sys
+
+    debug_print("RailLock __init__ loaded from:", __file__)
+    debug_print("sys.path:", sys.path)

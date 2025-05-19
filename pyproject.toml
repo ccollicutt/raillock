@@ -1,6 +1,6 @@
 [project]
 name = "raillock"
-version = "0.1.1"
+version = "0.1.2"
 description = "A Python library and CLI for MCP tool validation and review."
 authors = [
     { name = "Curtis COllicutt", email = "curtis@serverascode.com" }
@@ -30,7 +30,8 @@ dev = [
     "mcp==1.5.0",
     "trio",
     "vulture",
-    "tabulate"
+    "tabulate",
+    "dspy"
 ]
 
 [project.scripts]

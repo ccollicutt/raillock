@@ -15,6 +15,72 @@ RED = "\033[91m"
 RESET = "\033[0m"
 
 
+def interactive_review_tools(tools, server_name, server_type, output_file=None):
+    config_dict = {
+        "config_version": 1,
+        "server": {
+            "name": server_name,
+            "type": server_type,
+        },
+        "allowed_tools": {},
+        "malicious_tools": {},
+        "denied_tools": {},
+    }
+    for tool in tools:
+        if isinstance(tool, dict):
+            name = tool.get("name")
+            desc = tool.get("description", "")
+        else:
+            name = getattr(tool, "name", None)
+            desc = getattr(tool, "description", "")
+        print(f"\n{name}:")
+        print(f"  Description: {desc}")
+        ynmi = (
+            input(f"Allow tool '{name}'? {GREEN}[y]{RESET}/{RED}m{RESET}/n/i: ")
+            .strip()
+            .lower()
+        )
+        checksum = calculate_tool_checksum(name, desc, server_name)
+        tool_entry = {
+            "description": desc,
+            "server": server_name,
+            "checksum": checksum,
+        }
+        if ynmi == "y":
+            config_dict["allowed_tools"][name] = tool_entry
+        elif ynmi == "m":
+            config_dict["malicious_tools"][name] = tool_entry
+        elif ynmi == "n":
+            config_dict["denied_tools"][name] = tool_entry
+        # else: ignore (do not record)
+    # Dedent all descriptions before writing
+    for section in ("allowed_tools", "malicious_tools", "denied_tools"):
+        for tool in config_dict.get(section, {}).values():
+            if "description" in tool and isinstance(tool["description"], str):
+                tool["description"] = textwrap.dedent(tool["description"]).strip("\n")
+    # Write config
+    if output_file:
+        out_path = output_file
+    else:
+        out_path = (
+            input("Enter output YAML config filename [raillock_config.yaml]: ").strip()
+            or "raillock_config.yaml"
+        )
+
+    def str_presenter(dumper, data):
+        # Always use block style for multi-line strings
+        if "\n" in data:
+            return dumper.represent_scalar("tag:yaml.org,2002:str", data, style="|")
+        if any(c in data for c in [":", '"', "'", "{", "}", "[", "]"]):
+            return dumper.represent_scalar("tag:yaml.org,2002:str", data, style='"')
+        return dumper.represent_scalar("tag:yaml.org,2002:str", data)
+
+    yaml.add_representer(str, str_presenter)
+    with open(out_path, "w") as f:
+        yaml.safe_dump(config_dict, f, sort_keys=False, allow_unicode=True)
+    print(f"RailLock config saved to {out_path}")
+
+
 def run_review(args):
     # If --yes is set, treat --config as output file, not input
     config = None
@@ -102,17 +168,17 @@ def run_review(args):
                 try:
                     tools, real_server_name = await get_tools_via_sse(args.server)
                     print("[DEBUG] Raw tools from server:", tools)
-                    config_dict = {
-                        "config_version": 1,
-                        "server": {
-                            "name": real_server_name or args.server,
-                            "type": "sse",
-                        },
-                        "allowed_tools": {},
-                        "malicious_tools": {},
-                        "denied_tools": {},
-                    }
                     if getattr(args, "yes", False):
+                        config_dict = {
+                            "config_version": 1,
+                            "server": {
+                                "name": real_server_name or args.server,
+                                "type": "sse",
+                            },
+                            "allowed_tools": {},
+                            "malicious_tools": {},
+                            "denied_tools": {},
+                        }
                         for tool in tools:
                             name = getattr(tool, "name", None)
                             desc = getattr(tool, "description", "")
@@ -126,35 +192,12 @@ def run_review(args):
                             }
                         write_config(config_dict)
                     else:
-                        for tool in tools:
-                            name = getattr(tool, "name", None)
-                            desc = getattr(tool, "description", "")
-                            print(f"\n{name}:")
-                            print(f"  Description: {desc}")
-                            ynmi = (
-                                input(
-                                    f"Allow tool '{name}'? {GREEN}[y]{RESET}/{RED}m{RESET}/n/i: "
-                                )
-                                .strip()
-                                .lower()
-                            )
-                            checksum = calculate_tool_checksum(
-                                name, desc, config_dict["server"]["name"]
-                            )
-                            tool_entry = {
-                                "description": desc,
-                                "server": config_dict["server"]["name"],
-                                "checksum": checksum,
-                            }
-                            if ynmi == "y":
-                                config_dict["allowed_tools"][name] = tool_entry
-                            elif ynmi == "m":
-                                config_dict["malicious_tools"][name] = tool_entry
-                            elif ynmi == "n":
-                                config_dict["denied_tools"][name] = tool_entry
-                            # else: ignore (do not record)
-                        # Always write all three sections
-                        write_config(config_dict)
+                        interactive_review_tools(
+                            tools,
+                            real_server_name or args.server,
+                            "sse",
+                            output_file,
+                        )
                 except Exception as e:
                     print(f"Error: {str(e)}", file=sys.stderr)
                     sys.exit(1)
@@ -175,6 +218,8 @@ def run_review(args):
                     "type": "stdio" if args.server.startswith("stdio:") else "http",
                 },
                 "allowed_tools": {},
+                "malicious_tools": {},
+                "denied_tools": {},
             }
             for name, tool in tools.items():
                 desc = tool["description"]
@@ -188,9 +233,16 @@ def run_review(args):
         else:
             client.connect(args.server)
             print("[DEBUG] Connected. Reviewing tools...")
-            from raillock.cli.review_tools import review_tools
-
-            review_tools(client)
+            # Use the new interactive review for stdio/http
+            tools = []
+            for name, tool in client._available_tools.items():
+                tools.append({"name": name, "description": tool["description"]})
+            interactive_review_tools(
+                tools,
+                args.server,
+                "stdio" if args.server.startswith("stdio:") else "http",
+                output_file,
+            )
     except KeyboardInterrupt:
         print("\n[INFO] Review cancelled by user (Ctrl+C). Exiting.")
         sys.exit(130)

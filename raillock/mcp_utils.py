@@ -15,6 +15,7 @@ from mcp.client.sse import sse_client
 import logging
 from raillock.exceptions import RailLockError
 from urllib.parse import urlparse
+from raillock.utils import debug_print
 
 
 def monkeypatch_raillock_tools(session, rail_client):
@@ -30,13 +31,11 @@ def monkeypatch_raillock_tools(session, rail_client):
     async def patched_list_tools(*args, **kwargs):
         response = await original_list_tools(*args, **kwargs)
         tools = rail_client.filter_tools(response.tools)
-        logging.debug(
-            f"[RailLockMonkeypatch] Filtered tools: {[tool.name for tool in tools]}"
-        )
+        debug_print(f"[Monkeypatch] Filtered tools: {[tool.name for tool in tools]}")
         for tool in tools:
             if not getattr(tool, "description", None):
-                logging.debug(
-                    f"[RailLockMonkeypatch] Injecting default description for tool: {tool.name}"
+                debug_print(
+                    f"[Monkeypatch] Injecting default description for tool: {tool.name}"
                 )
                 tool.description = "No description provided (client override)"
 
@@ -105,14 +104,12 @@ class RailLockSessionWrapper:
     async def list_tools(self):
         response = await self.session.list_tools()
         tools = self.rail_client.filter_tools(response.tools)
-        logging.debug(
-            f"[RailLockSessionWrapper] Filtered tools: {[tool.name for tool in tools]}"
-        )
+        debug_print(f"[SessionWrapper] Filtered tools: {[tool.name for tool in tools]}")
         # Inject a default description if missing
         for tool in tools:
             if not getattr(tool, "description", None):
-                logging.debug(
-                    f"[RailLockSessionWrapper] Injecting default description for tool: {tool.name}"
+                debug_print(
+                    f"[SessionWrapper] Injecting default description for tool: {tool.name}"
                 )
                 tool.description = "No description provided (client override)"
         return tools

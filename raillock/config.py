@@ -5,6 +5,7 @@ RailLockConfig - Configuration management for tool validation.
 import yaml
 from pathlib import Path
 from typing import Dict, Optional
+from raillock.utils import debug_print
 
 
 class RailLockConfig:
@@ -19,6 +20,7 @@ class RailLockConfig:
     @classmethod
     def from_file(cls, config_path: str) -> "RailLockConfig":
         """Load configuration from a YAML file."""
+        debug_print(f"Loading RailLockConfig from: {config_path}")
         path = Path(config_path)
         if not path.exists():
             raise FileNotFoundError(f"Configuration file not found: {config_path}")
@@ -34,6 +36,9 @@ class RailLockConfig:
         allowed_tools = config_data.get("allowed_tools", {})
         malicious_tools = config_data.get("malicious_tools", {})
         denied_tools = config_data.get("denied_tools", {})
+        debug_print(f"Allowed tools: {list(allowed_tools.keys())}")
+        debug_print(f"Malicious tools: {list(malicious_tools.keys())}")
+        debug_print(f"Denied tools: {list(denied_tools.keys())}")
         return cls(allowed_tools, malicious_tools, denied_tools)
 
 

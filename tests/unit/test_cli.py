@@ -4,7 +4,6 @@ import os
 import pytest
 import subprocess
 import yaml
-from raillock.cli.review_tools import review_tools
 from raillock.client import RailLockClient
 from raillock.exceptions import RailLockError
 
@@ -15,45 +14,6 @@ class DummyClient:
 
     def validate_tools(self):
         return self._tools
-
-
-def test_review_tools_prints(capsys):
-    tools = {"echo": {"description": "desc", "checksum": "abc"}}
-    client = DummyClient(tools)
-    review_tools(client)
-    out = capsys.readouterr().out
-    assert "echo" in out
-    assert "Description" in out
-    assert "Checksum" in out
-
-
-def test_review_tools_empty(capsys):
-    client = DummyClient({})
-    review_tools(client)
-    out = capsys.readouterr().out
-    assert "No tools available" in out
-
-
-def test_review_tools_raillockerror(monkeypatch, capsys):
-    class BadClient:
-        def validate_tools(self):
-            raise RailLockError("fail")
-
-    with pytest.raises(SystemExit):
-        review_tools(BadClient())
-    err = capsys.readouterr().err
-    assert "Error reviewing tools" in err
-
-
-def test_review_tools_generic_exception(monkeypatch, capsys):
-    class BadClient:
-        def validate_tools(self):
-            raise Exception("fail")
-
-    with pytest.raises(SystemExit):
-        review_tools(BadClient())
-    err = capsys.readouterr().err
-    assert "Unexpected error" in err
 
 
 def test_cli_review_subprocess(tmp_path):
@@ -133,27 +93,6 @@ def test_cli_review_with_missing_config_file(tmp_path):
         or "Unexpected error" in result.stdout
         or "Unexpected error" in result.stderr
     )
-
-
-def test_review_tools_interactive(monkeypatch, capsys):
-    # Simulate user input for input() calls (always 'y')
-    monkeypatch.setattr("builtins.input", lambda prompt: "y")
-
-    # Prepare a dummy client with a tool
-    class DummyTool:
-        def __init__(self, name, description):
-            self.name = name
-            self.description = description
-
-    class DummyClient:
-        def validate_tools(self):
-            return {"echo": {"description": "desc", "checksum": "abc"}}
-
-    review_tools(DummyClient())
-    out = capsys.readouterr().out
-    assert "echo" in out
-    assert "Description" in out
-    assert "Checksum" in out
 
 
 def test_review_yes_creates_config(tmp_path, monkeypatch):
@@ -816,3 +755,48 @@ def test_compare_malicious_tools_checksum(tmp_path, monkeypatch, capsys):
     out2 = capsys.readouterr().out
     # Should show the tool as malicious (since checksum matches)
     assert "malicious" in out2
+
+
+def test_interactive_review_tools_all_modes(tmp_path, monkeypatch):
+    """Test that interactive review works for both SSE and stdio modes."""
+    import yaml
+    from raillock.cli.commands import review as review_mod
+
+    # Simulate user input: allow first, malicious second, deny third, ignore fourth
+    responses = iter(["y", "m", "n", "i"])
+    monkeypatch.setattr("builtins.input", lambda prompt: next(responses))
+
+    # Prepare tool lists for both modes
+    tools = [
+        {"name": "tool_allowed", "description": "desc1"},
+        {"name": "tool_malicious", "description": "desc2"},
+        {"name": "tool_denied", "description": "desc3"},
+        {"name": "tool_ignored", "description": "desc4"},
+    ]
+    server_name = "dummy_server"
+    output_file = tmp_path / "out.yaml"
+
+    # Test stdio mode
+    review_mod.interactive_review_tools(tools, server_name, "stdio", str(output_file))
+    with open(output_file) as f:
+        config = yaml.safe_load(f)
+    assert "tool_allowed" in config["allowed_tools"]
+    assert "tool_malicious" in config["malicious_tools"]
+    assert "tool_denied" in config["denied_tools"]
+    assert "tool_ignored" not in config["allowed_tools"]
+    assert "tool_ignored" not in config["malicious_tools"]
+    assert "tool_ignored" not in config["denied_tools"]
+
+    # Test SSE mode (should behave identically)
+    responses2 = iter(["y", "m", "n", "i"])
+    monkeypatch.setattr("builtins.input", lambda prompt: next(responses2))
+    output_file2 = tmp_path / "out2.yaml"
+    review_mod.interactive_review_tools(tools, server_name, "sse", str(output_file2))
+    with open(output_file2) as f:
+        config2 = yaml.safe_load(f)
+    assert "tool_allowed" in config2["allowed_tools"]
+    assert "tool_malicious" in config2["malicious_tools"]
+    assert "tool_denied" in config2["denied_tools"]
+    assert "tool_ignored" not in config2["allowed_tools"]
+    assert "tool_ignored" not in config2["malicious_tools"]
+    assert "tool_ignored" not in config2["denied_tools"]

@@ -43,14 +43,6 @@ uv pip install -e ".[dev]"
 
 The raillock CLI should now be available.
 
-With pip:
-
-```bash
-git clone https://github.com/ccollicutt/raillock.git
-cd raillock
-pip install -e .
-```
-
 ## Usage
 
 ### Using the CLI

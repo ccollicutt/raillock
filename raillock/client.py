@@ -15,6 +15,7 @@ from requests.exceptions import RequestException
 from .config import RailLockConfig
 from .exceptions import RailLockError
 from .utils import calculate_tool_checksum
+from raillock.utils import debug_print
 
 
 class RailLockClient:
@@ -24,11 +25,12 @@ class RailLockClient:
         """Initialize the client with a configuration."""
         self.config = config
         self._available_tools: Dict[str, dict] = {}
-        self._validated_tools: Dict[str, dict] = {}
         self._process: Optional[subprocess.Popen] = None
+        self._server_name: Optional[str] = None
 
     def connect(self, server_url: str) -> None:
         """Connect to an MCP server and fetch available tools."""
+        self._server_name = server_url
         try:
             if server_url.startswith("stdio:"):
                 # Use async stdio_client and ClientSession from MCP SDK
@@ -56,6 +58,7 @@ class RailLockClient:
             raise RailLockError(f"Failed to start stdio process: {str(e)}")
 
     async def connect_stdio_async(self, server_url: str) -> None:
+        self._server_name = server_url
         try:
             from mcp.client.stdio import stdio_client
             from mcp import ClientSession
@@ -94,22 +97,6 @@ class RailLockClient:
             self._process.terminate()
             self._process = None
 
-    def validate_tools(self) -> Dict[str, dict]:
-        """Validate available tools against the configuration, with malicious and denied taking precedence."""
-        self._validated_tools = {}
-
-        for tool_name, tool_data in self._available_tools.items():
-            # Malicious tools are never allowed
-            if tool_name in self.config.malicious_tools:
-                continue
-            # Denied tools are not allowed
-            if tool_name in self.config.denied_tools:
-                continue
-            if self._is_tool_allowed(tool_name, tool_data):
-                self._validated_tools[tool_name] = tool_data
-
-        return self._validated_tools
-
     def _parse_tools(self, tools_data: dict) -> Dict[str, dict]:
         """Parse and validate the tools data from the server."""
         if not isinstance(tools_data, dict):
@@ -133,53 +120,54 @@ class RailLockClient:
         return parsed_tools
 
     def _is_tool_allowed(self, tool_name: str, tool_data: dict) -> bool:
-        """Check if a tool is allowed based on the configuration."""
-        # Only tools in allowed_tools are considered allowed
+        debug_print(f"_is_tool_allowed called for {tool_name}")
         if tool_name not in self.config.allowed_tools:
+            debug_print(f"{tool_name} not in allowed_tools")
             return False
         allowed_val = self.config.allowed_tools[tool_name]
         if isinstance(allowed_val, dict):
             expected_checksum = allowed_val["checksum"]
-            server_name = allowed_val.get("server")
+            server_name = allowed_val.get("server", self._server_name)
         else:
             expected_checksum = allowed_val
-            server_name = None
+            server_name = self._server_name
         actual_checksum = calculate_tool_checksum(
             tool_name, tool_data["description"], server_name
         )
-        return actual_checksum == expected_checksum
+        result = actual_checksum == expected_checksum
+        debug_print(
+            f"{tool_name}: expected_checksum={expected_checksum}, actual_checksum={actual_checksum}, match={result}"
+        )
+        return result
 
     def _calculate_checksum(self, tool_name: str, description: str) -> str:
         """Calculate the checksum for a tool."""
-        return calculate_tool_checksum(tool_name, description)
+        return calculate_tool_checksum(tool_name, description, self._server_name)
 
     def filter_tools(self, tools):
-        """
-        Return only tools allowed by the RailLock config, with malicious and denied taking precedence, and enforcing checksum.
-        Args:
-            tools (list): List of tool objects (must have .name attribute).
-        Returns:
-            list: Filtered list of allowed tool objects.
-        """
+        debug_print("filter_tools called")
         allowed = set(self.config.allowed_tools)
         malicious = set(self.config.malicious_tools)
         denied = set(self.config.denied_tools)
-        return [
-            tool
-            for tool in tools
-            if (
-                getattr(tool, "name", None) in allowed
-                and getattr(tool, "name", None) not in malicious
-                and getattr(tool, "name", None) not in denied
-                and self._is_tool_allowed(
-                    getattr(tool, "name", None),
-                    {
-                        "description": getattr(tool, "description", ""),
-                        "checksum": getattr(tool, "checksum", ""),
-                    },
-                )
+        filtered = []
+        for tool in tools:
+            name = getattr(tool, "name", None)
+            desc = getattr(tool, "description", "")
+            checksum = getattr(tool, "checksum", "")
+            is_allowed = name in allowed
+            is_malicious = name in malicious
+            is_denied = name in denied
+            checksum_ok = self._is_tool_allowed(
+                name, {"description": desc, "checksum": checksum}
             )
-        ]
+            debug_print(f"Tool: {name}")
+            debug_print(f"  Allowed in config: {is_allowed}")
+            debug_print(f"  Malicious in config: {is_malicious}")
+            debug_print(f"  Denied in config: {is_denied}")
+            debug_print(f"  Checksum matches: {checksum_ok}")
+            if is_allowed and not is_malicious and not is_denied and checksum_ok:
+                filtered.append(tool)
+        return filtered
 
     def test_server(self, server_url: str, timeout: int = 5) -> bool:
         """Test if the server is up and running before connecting."""

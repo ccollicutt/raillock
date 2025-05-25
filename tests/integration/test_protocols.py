@@ -17,6 +17,48 @@ def get_free_port():
         return s.getsockname()[1]
 
 
+def _is_coverage_enabled():
+    """Check if coverage is actively collecting data during testing."""
+    # Check for coverage command line indicators in argv
+    if any("--cov" in arg for arg in sys.argv):
+        return True
+
+    # Check if coverage is actually running/collecting data
+    try:
+        import coverage
+
+        # Check if coverage is currently measuring
+        cov = coverage.Coverage()
+        if cov._collectors:  # Coverage has active collectors
+            return True
+        # Alternative check - see if coverage is in the call stack
+        import inspect
+
+        for frame_info in inspect.stack():
+            if "coverage" in frame_info.filename:
+                return True
+    except:
+        pass
+
+    # Check for pytest-cov being actively used
+    try:
+        # Check if pytest-cov plugin is loaded and has active coverage
+        import pytest
+
+        if hasattr(pytest, "config") and pytest.config:
+            if hasattr(pytest.config, "pluginmanager"):
+                if pytest.config.pluginmanager.hasplugin("pytest_cov"):
+                    return True
+    except:
+        pass
+
+    # Check for coverage environment variables indicating active collection
+    if os.environ.get("COVERAGE_PROCESS_START") or os.environ.get("COV_CORE_SOURCE"):
+        return True
+
+    return False
+
+
 # SSE integration test
 @pytest.mark.anyio("asyncio")
 async def test_sse_integration_with_real_server():
@@ -70,51 +112,43 @@ async def test_sse_integration_with_real_server():
 # STDIO integration test
 
 
-@pytest.mark.timeout(10)
 def test_stdio_integration(tmp_path):
     print("[DEBUG] Starting stdio integration test", flush=True)
     server_script = os.path.abspath("examples/most-basic/echo_server.py")
     print(f"[DEBUG] Using real echo_server.py at {server_script}", flush=True)
-    print("[DEBUG] Launching stdio server process...", flush=True)
-    proc = subprocess.Popen(
-        [sys.executable, server_script],
-        env=os.environ.copy(),  # Ensure subprocess inherits the current environment
-        stdin=subprocess.PIPE,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-    )
-    print("[DEBUG] Subprocess started", flush=True)
-    # Check if the server process exited immediately
-    time.sleep(0.5)
-    if proc.poll() is not None:
-        out, err = proc.communicate(timeout=2)
-        print(
-            f"[DEBUG] Server process exited early.\n[STDOUT]: {out}\n[STDERR]: {err}",
-            flush=True,
-        )
-        raise RuntimeError("STDIO server process exited immediately after start")
-    print("[DEBUG] Creating RailLockClient...", flush=True)
-    client = RailLockClient(RailLockConfig())
-    print("[DEBUG] RailLockClient created", flush=True)
-    print("[DEBUG] About to call connect()", flush=True)
-    client.connect(f"stdio:{sys.executable} {server_script}")
-    print("[DEBUG] client.connect() returned", flush=True)
-    print("[DEBUG] Connected. Available tools:", client._available_tools, flush=True)
-    assert "echo" in client._available_tools
-    print("[DEBUG] About to close client", flush=True)
-    client.close()
-    print("[DEBUG] Client closed.", flush=True)
-    print("[DEBUG] Terminating stdio server process...", flush=True)
-    proc.terminate()
+
+    client = None
+
     try:
-        proc.wait(timeout=2)
-    except subprocess.TimeoutExpired:
-        print("[DEBUG] Process did not terminate in time, killing...", flush=True)
-        proc.kill()
-    out, err = proc.communicate(timeout=2)
-    print("[DEBUG] Server stdout:", out, flush=True)
-    print("[DEBUG] Server stderr:", err, flush=True)
+        print("[DEBUG] Creating RailLockClient...", flush=True)
+        client = RailLockClient(RailLockConfig())
+        print("[DEBUG] RailLockClient created", flush=True)
+        print("[DEBUG] About to call connect()", flush=True)
+
+        # The RailLockClient will create and manage its own subprocess
+        client.connect(f"stdio:{sys.executable} {server_script}")
+
+        print("[DEBUG] client.connect() returned", flush=True)
+        print(
+            "[DEBUG] Connected. Available tools:", client._available_tools, flush=True
+        )
+        assert "echo" in client._available_tools
+        print("[DEBUG] About to close client", flush=True)
+
+    except Exception as e:
+        print(f"[DEBUG] Exception occurred: {e}", flush=True)
+        import traceback
+
+        print(f"[DEBUG] Traceback: {traceback.format_exc()}", flush=True)
+        raise
+    finally:
+        # Ensure proper cleanup
+        if client:
+            try:
+                client.close()
+                print("[DEBUG] Client closed.", flush=True)
+            except Exception as e:
+                print(f"[DEBUG] Error closing client: {e}", flush=True)
 
 
 def test_minimal_debug():

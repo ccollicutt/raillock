@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RailLock Tool Review</title>
+    
+    <!-- Favicons -->
+    <link rel="icon" href="/static/favicon.ico" sizes="any">
+    <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+    <link rel="icon" href="/static/favicon-96x96.png" type="image/png" sizes="96x96">
+    <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
+    <link rel="manifest" href="/static/site.webmanifest">
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=Modak&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/style.css">
+    <!-- Prism.js for syntax highlighting -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
+    <!-- js-yaml for YAML parsing and validation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/js-yaml/4.1.0/js-yaml.min.js"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+</head>
+  <body>
+    <div class="dashboard">
+        <!-- Sidebar Navigation -->
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <h2><img src="/static/img/raillock-logo-small.png" alt="RailLock" class="sidebar-logo"> RailLock</h2>
+                <p>Tool Review Dashboard</p>
+            </div>
+            <nav class="sidebar-nav">
+                <a href="#" id="review-mode" class="nav-item active">
+                    <i data-lucide="clipboard-list" class="nav-icon"></i>
+                    <span class="nav-text">Review Tools</span>
+                </a>
+                <a href="#" id="compare-mode" class="nav-item">
+                    <i data-lucide="file-diff" class="nav-icon"></i>
+                    <span class="nav-text">Compare Config</span>
+                </a>
+                <a href="#" id="edit-mode" class="nav-item">
+                    <i data-lucide="file-edit" class="nav-icon"></i>
+                    <span class="nav-text">Edit Config</span>
+                </a>
+                <a href="#" id="about-mode" class="nav-item">
+                    <i data-lucide="info" class="nav-icon"></i>
+                    <span class="nav-text">About</span>
+                </a>
+            </nav>
+        </div>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <div class="content-header">
+                <h1 id="page-title">Review Tools</h1>
+                <p id="page-subtitle">Review MCP server tools for your MCP client</p>
+            </div>
+
+        <div id="loading" class="loading">
+            <div class="spinner"></div>
+            <p>Loading tools from server...</p>
+        </div>
+
+        <!-- Review Mode -->
+        <div id="content" style="display: none;">
+            <div class="server-info">
+                <strong>Server:</strong> <span id="server-name"></span><br>
+                <strong>Type:</strong> <span id="server-type"></span><br>
+                <strong>Tools Found:</strong> <span id="tool-count"></span>
+            </div>
+
+            <div class="progress">
+                <span id="progress-text">0 of 0 tools reviewed</span>
+            </div>
+
+            <div class="filter-controls">
+                <div class="search-controls">
+                    <label for="search-input">Search:</label>
+                    <input type="text" id="search-input" class="search-input" placeholder="Search tool names (or title:name, desc:text)">
+                    <button id="clear-search" class="btn-clear-search" title="Clear search">
+                        <i data-lucide="x" class="clear-icon"></i>
+                    </button>
+                </div>
+                
+                <div class="sort-controls">
+                    <label for="sort-select">Sort by:</label>
+                    <select id="sort-select" class="sort-dropdown">
+                        <option value="name">Name (A-Z)</option>
+                        <option value="description-length">Description Length</option>
+                    </select>
+                </div>
+            </div>
+
+            <div id="tools-container">
+                <!-- Tools will be loaded here -->
+            </div>
+
+            <div class="actions">
+                <button id="reset-review" class="btn btn-secondary">
+                    <i data-lucide="refresh-cw" class="btn-icon"></i> Reset
+                </button>
+                <button id="allow-all-unset" class="btn btn-warning" title="Allow any tools that haven't been reviewed yet">
+                    <i data-lucide="check-square" class="btn-icon"></i> Allow Rest
+                </button>
+                <button id="preview-config" class="btn btn-primary" disabled>
+                    <i data-lucide="eye" class="btn-icon"></i> Preview
+                </button>
+            </div>
+        </div>
+
+        <!-- Preview Mode -->
+        <div id="preview" style="display: none;">
+            <div class="header">
+                <h2><i data-lucide="file-text" class="sidebar-icon"></i> Configuration Preview</h2>
+                <p>Review your configuration before saving</p>
+            </div>
+
+            <div class="config-preview">
+                <h3>Configuration Summary</h3>
+                <div class="summary-stats">
+                    <span class="stat allowed"><i data-lucide="check" class="summary-icon"></i><span id="allowed-count">0</span>&nbsp;Allowed</span>
+                    <span class="stat denied"><i data-lucide="x" class="summary-icon"></i><span id="denied-count">0</span>&nbsp;Denied</span>
+                    <span class="stat malicious"><i data-lucide="alert-triangle" class="summary-icon"></i><span id="malicious-count">0</span>&nbsp;Malicious</span>
+                    <span class="stat ignored"><i data-lucide="minus" class="summary-icon"></i><span id="ignored-count">0</span>&nbsp;Ignored</span>
+                </div>
+                
+                <h4>YAML Configuration:</h4>
+                <pre><code id="config-yaml" class="language-yaml"></code></pre>
+                
+                <div class="save-location">
+                    <label for="config-filename">Save as:</label>
+                    <input type="text" id="config-filename" value="raillock_config.yaml" placeholder="Enter filename...">
+                </div>
+            </div>
+
+            <div class="actions">
+                <button id="back-to-review" class="btn btn-secondary">
+                    <i data-lucide="arrow-left" class="btn-icon"></i> Back
+                </button>
+                <button id="save-config" class="btn btn-primary">
+                    <i data-lucide="save" class="btn-icon"></i> Save
+                </button>
+            </div>
+        </div>
+
+        <!-- Compare Mode -->
+        <div id="compare" style="display: none;">
+            <div class="server-info">
+                <strong>Server:</strong> <span id="compare-server-name"></span><br>
+                <strong>Type:</strong> <span id="compare-server-type"></span>
+            </div>
+
+            <div class="upload-section">
+                <h3>Upload Configuration File</h3>
+                <div class="file-upload">
+                    <input type="file" id="config-file" accept=".yaml,.yml" />
+                    <label for="config-file" class="file-upload-label">
+                        <i data-lucide="folder-open" class="btn-icon"></i> Load from File
+                    </label>
+                    <span id="file-name"></span>
+                </div>
+            </div>
+
+            <div class="button-group">
+                <button id="reset-compare" class="btn btn-secondary" disabled>
+                    <i data-lucide="refresh-cw" class="btn-icon"></i> Reset
+                </button>
+                <button id="run-compare" class="btn btn-primary" disabled>
+                    Compare
+                </button>
+            </div>
+
+            <div id="compare-results" style="display: none;">
+                <h3>Comparison Results</h3>
+                <div class="comparison-summary">
+                    <div class="summary-item">
+                        <span class="summary-label">Tools on Server:</span>
+                        <span id="server-tools-count">0</span>
+                    </div>
+                    <div class="summary-item">
+                        <span class="summary-label">Allowed Tools:</span>
+                        <span id="allowed-tools-count">0</span>
+                    </div>
+                    <div class="summary-item">
+                        <span class="summary-label">Malicious Tools:</span>
+                        <span id="malicious-tools-count">0</span>
+                    </div>
+                    <div class="summary-item">
+                        <span class="summary-label">Denied Tools:</span>
+                        <span id="denied-tools-count">0</span>
+                    </div>
+                    <div class="summary-item">
+                        <span class="summary-label">Checksum Mismatches:</span>
+                        <span id="checksum-mismatches-count">0</span>
+                    </div>
+                </div>
+                <div class="table-container">
+                    <table id="comparison-table" class="comparison-table">
+                        <thead>
+                            <tr>
+                                <th>Tool Name</th>
+                                <th>On Server</th>
+                                <th>Allowed</th>
+                                <th>Checksum Match</th>
+                                <th>Type</th>
+                            </tr>
+                        </thead>
+                        <tbody id="comparison-tbody">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Edit Mode -->
+        <div id="edit" style="display: none;">
+            <div class="edit-section">
+                <h3>Manual Configuration Editor</h3>
+                <p>Edit your RailLock configuration directly in YAML format</p>
+                
+                <div class="editor-toolbar">
+                    <button id="load-template" class="btn btn-secondary"><i data-lucide="file-text" class="btn-icon"></i> Load Template</button>
+                    <button id="load-from-file" class="btn btn-secondary"><i data-lucide="folder-open" class="btn-icon"></i> Load from File</button>
+                    <button id="validate-yaml" class="btn btn-secondary"><i data-lucide="check-circle" class="btn-icon"></i> Validate YAML</button>
+                    <input type="file" id="yaml-file-input" accept=".yaml,.yml" style="display: none;" />
+                </div>
+
+                <div class="editor-container">
+                    <textarea id="yaml-editor" placeholder="Enter your YAML configuration here..."></textarea>
+                    <pre id="yaml-highlight"><code id="yaml-highlight-code" class="language-yaml"></code></pre>
+                </div>
+
+                <div id="validation-message" class="validation-message" style="display: none;"></div>
+
+                <div class="save-config-section">
+                    <label for="edit-config-filename">Save as:</label>
+                    <input type="text" id="edit-config-filename" value="raillock_config.yaml" placeholder="Enter filename...">
+                    <button id="reset-edit" class="btn btn-secondary"><i data-lucide="refresh-cw" class="btn-icon"></i> Reset</button>
+                    <button id="save-manual-config" class="btn btn-primary"><i data-lucide="save" class="btn-icon"></i> Save</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- About Mode -->
+        <div id="about" style="display: none;">
+            <div class="about-section">
+                <div class="about-logo-container">
+                    <img src="/static/img/raillock-logo-small.png" alt="RailLock" class="about-logo-center">
+                </div>
+                <div class="readme-content">
+                    <p>Raillock is an MCP security CLI and Python library that can be used to validate MCP servers and the tools they expose. It's most basic function is to calculate the checksum of the tools the MCP server exposes, including their descriptions, and compare it with the checksum of the tools in the client's config file.</p>
+                    
+                    <ol>
+                        <li>A CLI tool that can be used to validate MCP servers.</li>
+                        <li>A Python library for MCP clients that can be used to validate MCP servers.</li>
+                    </ol>
+                    
+                    <p>The CLI tool could be used outside a Python environment to validate MCP servers, but of course the client library would need to be used inside the Python environment, specifically in the MCP client of an AI agent.</p>
+                    
+                    <h4>Why is this important?</h4>
+                    
+                    <p>Using AI tools is different from using traditional software in that they are "programmable" through natural language. For example, currently MCP servers provide a description, or the function's doc string, of the tool, which can contain malicious instructions to the agent using the tool.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Success Mode -->
+        <div id="success" style="display: none;">
+            <div class="success-message">
+                <h3><i data-lucide="check-circle" class="sidebar-icon"></i> Configuration Saved Successfully!</h3>
+                <p>Your RailLock configuration has been saved to <strong id="config-path"></strong></p>
+                <p>You can now use this configuration to validate tools with RailLock.</p>
+            </div>
+            <div class="actions">
+                <button onclick="window.location.reload()" class="btn btn-primary">
+                    <i data-lucide="refresh-cw" class="btn-icon"></i> Review Tools
+                </button>
+            </div>
+        </div>
+        <!-- End of main-content -->
+    </div>
+    <!-- End of dashboard -->
+
+    <script src="/static/js/app.js"></script>
+    <script>
+        // Initialize Lucide icons
+        lucide.createIcons();
+    </script>
+</body>
+</html> 

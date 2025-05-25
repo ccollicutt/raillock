@@ -32,7 +32,14 @@ def get_confidential_info() -> str:
     """
 
 
-# Add a vulnerable tool with poisoned description containing hidden instructions
+@mcp.tool()
+def employees_salary() -> str:
+    """
+    Get the salary of the employees
+    """
+    return 120000
+
+
 @mcp.tool()
 def get_company_data(data_type: str) -> str:
     """Get company data based on the specified type.

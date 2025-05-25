@@ -23,10 +23,11 @@ We are looking for feedback from users!
 
 ## Features
 
-- Connect to MCP servers
-- Validate available tools
-- Manage tool access permissions
-- Configuration-based tool validation
+- Connect to MCP servers (HTTP/SSE and stdio)
+- Validate available tools with checksum verification
+- Manage tool access permissions via CLI or web interface
+- Configuration-based tool validation with YAML configs
+- **Web UI** for visual tool management and configuration
 - Example server and client implementations
 
 ## Installation
@@ -72,6 +73,27 @@ raillock review --server http://localhost:8000 --yes
 raillock compare --server http://localhost:8000 --config raillock_config.yaml
 ```
 
+#### Web Interface
+
+RailLock includes a web interface for easier tool management and configuration:
+
+```sh
+# Start web server for an SSE MCP server
+raillock webserver --server http://localhost:8000/sse --sse --host 0.0.0.0 --port 8080
+
+# Start web server for a stdio MCP server
+raillock webserver --server "stdio:python examples/most-basic/echo_server.py" --host 0.0.0.0 --port 8080
+```
+
+The web interface provides:
+
+- **Tool Discovery**: Browse all available tools from the MCP server
+- **Interactive Review**: Allow/deny tools with a visual interface
+- **Configuration Management**: Generate and download YAML config files
+- **Real-time Comparison**: Compare existing configs against live servers
+
+Access the web interface at `http://localhost:8080` after starting the webserver.
+
 ---
 
 ### Using the Library
@@ -111,5 +133,6 @@ if __name__ == "__main__":
 
 ## Further Reading on MCP Security
 
-- [https://blog.trailofbits.com/2025/04/21/jumping-the-line-how-mcp-servers-can-attack-you-before-you-ever-use-them/](https://blog.trailofbits.com/2025/04/21/jumping-the-line-how-mcp-servers-can-attack-you-before-you-ever-use-them/)
-- [https://blog.trailofbits.com/2025/04/23/how-mcp-servers-can-steal-your-conversation-history/](https://blog.trailofbits.com/2025/04/23/how-mcp-servers-can-steal-your-conversation-history/)
+- [Invariant Labs - Tool Poisoning](https://invariantlabs.ai/blog/mcp-security-notification-tool-poisoning-attacks)
+- [Trail of Bits - Jumping the Line](https://blog.trailofbits.com/2025/04/21/jumping-the-line-how-mcp-servers-can-attack-you-before-you-ever-use-them/)
+- [Trail of Bits - Conversation History](https://blog.trailofbits.com/2025/04/23/how-mcp-servers-can-steal-your-conversation-history/)

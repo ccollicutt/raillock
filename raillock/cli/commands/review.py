@@ -9,6 +9,13 @@ from raillock.config import RailLockConfig
 from raillock.exceptions import RailLockError
 from raillock.mcp_utils import get_tools_via_sse
 from raillock.utils import calculate_tool_checksum
+from raillock.config_utils import (
+    build_config_dict,
+    save_config_to_file,
+    handle_config_load_error,
+    handle_raillock_error,
+    extract_tool_info,
+)
 
 GREEN = "\033[92m"
 RED = "\033[91m"
@@ -16,23 +23,12 @@ RESET = "\033[0m"
 
 
 def interactive_review_tools(tools, server_name, server_type, output_file=None):
-    config_dict = {
-        "config_version": 1,
-        "server": {
-            "name": server_name,
-            "type": server_type,
-        },
-        "allowed_tools": {},
-        "malicious_tools": {},
-        "denied_tools": {},
-    }
+    """Interactive tool review using shared utilities."""
+    choices = {}
+
     for tool in tools:
-        if isinstance(tool, dict):
-            name = tool.get("name")
-            desc = tool.get("description", "")
-        else:
-            name = getattr(tool, "name", None)
-            desc = getattr(tool, "description", "")
+        name, desc = extract_tool_info(tool)
+
         print(f"\n{name}:")
         print(f"  Description: {desc}")
         ynmi = (
@@ -40,25 +36,19 @@ def interactive_review_tools(tools, server_name, server_type, output_file=None):
             .strip()
             .lower()
         )
-        checksum = calculate_tool_checksum(name, desc, server_name)
-        tool_entry = {
-            "description": desc,
-            "server": server_name,
-            "checksum": checksum,
-        }
+
         if ynmi == "y":
-            config_dict["allowed_tools"][name] = tool_entry
+            choices[name] = "allow"
         elif ynmi == "m":
-            config_dict["malicious_tools"][name] = tool_entry
+            choices[name] = "malicious"
         elif ynmi == "n":
-            config_dict["denied_tools"][name] = tool_entry
+            choices[name] = "deny"
         # else: ignore (do not record)
-    # Dedent all descriptions before writing
-    for section in ("allowed_tools", "malicious_tools", "denied_tools"):
-        for tool in config_dict.get(section, {}).values():
-            if "description" in tool and isinstance(tool["description"], str):
-                tool["description"] = textwrap.dedent(tool["description"]).strip("\n")
-    # Write config
+
+    # Build config using shared utility
+    config_dict = build_config_dict(tools, choices, server_name, server_type)
+
+    # Save config using shared utility
     if output_file:
         out_path = output_file
     else:
@@ -67,17 +57,7 @@ def interactive_review_tools(tools, server_name, server_type, output_file=None):
             or "raillock_config.yaml"
         )
 
-    def str_presenter(dumper, data):
-        # Always use block style for multi-line strings
-        if "\n" in data:
-            return dumper.represent_scalar("tag:yaml.org,2002:str", data, style="|")
-        if any(c in data for c in [":", '"', "'", "{", "}", "[", "]"]):
-            return dumper.represent_scalar("tag:yaml.org,2002:str", data, style='"')
-        return dumper.represent_scalar("tag:yaml.org,2002:str", data)
-
-    yaml.add_representer(str, str_presenter)
-    with open(out_path, "w") as f:
-        yaml.safe_dump(config_dict, f, sort_keys=False, allow_unicode=True)
+    save_config_to_file(config_dict, out_path)
     print(f"RailLock config saved to {out_path}")
 
 
@@ -95,13 +75,8 @@ def run_review(args):
             try:
                 print(f"[DEBUG] Loading config from {args.config}")
                 config = RailLockConfig.from_file(args.config)
-            except (ValueError, yaml.YAMLError) as e:
-                print(f"Error loading configuration: {e}", file=sys.stderr)
-                sys.exit(1)
             except Exception as e:
-                print(f"Unexpected error: {e}", file=sys.stderr)
-                traceback.print_exc()
-                sys.exit(1)
+                handle_config_load_error(e, args.config)
         else:
             config = RailLockConfig()
 
@@ -136,30 +111,7 @@ def run_review(args):
                     or "raillock_config.yaml"
                 )
 
-            def str_presenter(dumper, data):
-                # Always use block style for multi-line strings
-                if "\n" in data:
-                    return dumper.represent_scalar(
-                        "tag:yaml.org,2002:str", data, style="|"
-                    )
-                if any(c in data for c in [":", '"', "'", "{", "}", "[", "]"]):
-                    return dumper.represent_scalar(
-                        "tag:yaml.org,2002:str", data, style='"'
-                    )
-                return dumper.represent_scalar("tag:yaml.org,2002:str", data)
-
-            yaml.add_representer(str, str_presenter)
-
-            # Dedent all descriptions before writing
-            for section in ("allowed_tools", "malicious_tools", "denied_tools"):
-                for tool in config_dict.get(section, {}).values():
-                    if "description" in tool and isinstance(tool["description"], str):
-                        tool["description"] = textwrap.dedent(
-                            tool["description"]
-                        ).strip("\n")
-
-            with open(out_path, "w") as f:
-                yaml.safe_dump(config_dict, f, sort_keys=False, allow_unicode=True)
+            save_config_to_file(config_dict, out_path)
             print(f"RailLock config saved to {out_path}")
 
         if getattr(args, "sse", False):
@@ -243,14 +195,7 @@ def run_review(args):
                 "stdio" if args.server.startswith("stdio:") else "http",
                 output_file,
             )
-    except KeyboardInterrupt:
-        print("\n[INFO] Review cancelled by user (Ctrl+C). Exiting.")
-        sys.exit(130)
-    except RailLockError as e:
-        print(f"Error: {str(e)}", file=sys.stderr)
-        sys.exit(1)
     except Exception as e:
-        print(f"Error: {str(e)}", file=sys.stderr)
-        sys.exit(1)
+        handle_raillock_error(e)
     finally:
         client.close()

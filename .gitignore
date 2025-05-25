@@ -32,3 +32,5 @@ htmlcov/
 
 # Misc
 *.swp
+
+.coverage*

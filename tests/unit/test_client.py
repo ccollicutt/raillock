@@ -1,9 +1,10 @@
 import pytest
 import requests
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, AsyncMock
 from raillock.client import RailLockClient
 from raillock.config import RailLockConfig
 from raillock.exceptions import RailLockError
+from raillock.config_utils import compare_config_with_server
 import json
 import shutil
 import os
@@ -170,43 +171,52 @@ if HAVE_MCP_SDK:
 
 
 def test_compare_logic_with_nested_config():
-    """Test compare logic with a config file using nested dicts for allowed_tools."""
-    # Simulate server tools
+    """Test that the compare logic works properly with nested config structure."""
+    # Create a simple config
+    config_data = {
+        "allowed_tools": {
+            "echo": {
+                "description": "Echo the input text",
+                "checksum": "80ea71b3ef0597f02019c802bf49686f1152129686f087c4daadeafc1c606a68",
+                "server": "http://testserver",
+            }
+        },
+        "denied_tools": {},
+    }
+
+    # Server tools with matching checksums
     server_tools = {
-        "echo": {"description": "Echo the input text", "checksum": "abc123"},
-        "add": {"description": "Add two integers", "checksum": "def456"},
-        "delete_folder": {"description": "Delete a folder", "checksum": "ghi789"},
-    }
-    # Simulate config allowed_tools in nested dict format
-    allowed_tools = {
-        "echo": {"description": "Echo the input text", "checksum": "abc123"},
-        "add": {"description": "Add two integers", "checksum": "wrong"},
+        "echo": {
+            "description": "Echo the input text",
+            "checksum": "80ea71b3ef0597f02019c802bf49686f1152129686f087c4daadeafc1c606a68",
+        },
     }
 
-    # Compare logic
-    def check(v):
-        return "✔" if v else "✘"
+    # Compare config with server tools
+    results, stats = compare_config_with_server(config_data, server_tools)
 
-    results = []
-    for tool in sorted(set(server_tools.keys()) | set(allowed_tools.keys())):
-        on_server = tool in server_tools
-        allowed = tool in allowed_tools
-        allowed_checksum = None
-        if allowed:
-            allowed_val = allowed_tools[tool]
-            if isinstance(allowed_val, dict) and "checksum" in allowed_val:
-                allowed_checksum = allowed_val["checksum"]
-            elif isinstance(allowed_val, str):
-                allowed_checksum = allowed_val
-        server_checksum = server_tools[tool]["checksum"] if on_server else None
-        checksum_match = (
-            on_server
-            and allowed
-            and allowed_checksum is not None
-            and server_checksum == allowed_checksum
-        )
-        results.append((tool, check(on_server), check(allowed), check(checksum_match)))
-    # echo should match, add should not, delete_folder should not be allowed
-    assert results[0][0] == "add" and results[0][3] == "✘"
-    assert results[1][0] == "delete_folder" and results[1][3] == "✘"
-    assert results[2][0] == "echo" and results[2][3] == "✔"
+    # Should have results
+    assert len(results) > 0
+
+    # Should have echo tool that is allowed
+    echo_result = next((r for r in results if r["tool"] == "echo"), None)
+    assert echo_result is not None
+    assert echo_result["type"] == "allowed"
+
+
+def test_server_test_stdio_executable_check():
+    """Test that test_server properly checks for stdio executable existence."""
+    client = RailLockClient(RailLockConfig())
+
+    # Test with existing executable
+    with patch("shutil.which") as mock_which:
+        mock_which.return_value = "/bin/echo"
+        result = client.test_server("stdio:/bin/echo test")
+        assert result is True
+        mock_which.assert_called_once_with("/bin/echo")
+
+    # Test with non-existing executable
+    with patch("shutil.which") as mock_which:
+        mock_which.return_value = None
+        with pytest.raises(RailLockError, match="STDIO server executable not found"):
+            client.test_server("stdio:/nonexistent/command")

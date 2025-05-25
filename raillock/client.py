@@ -8,6 +8,7 @@ import subprocess
 from typing import Dict, Optional
 from urllib.parse import urlparse
 import asyncio
+import os
 
 import requests
 from requests.exceptions import RequestException
@@ -57,8 +58,38 @@ class RailLockClient:
         except subprocess.SubprocessError as e:
             raise RailLockError(f"Failed to start stdio process: {str(e)}")
 
+    async def connect_async(self, server_url: str) -> None:
+        """Async version of connect for use in async contexts."""
+        self._server_name = server_url
+        try:
+            if server_url.startswith("stdio:"):
+                await self.connect_stdio_async(server_url)
+            else:
+                # For HTTP/SSE, we still use synchronous requests
+                # Could be improved to use aiohttp in the future
+                parsed_url = urlparse(server_url)
+                if parsed_url.scheme not in ["http", "https"]:
+                    raise RailLockError(
+                        f"Invalid server URL scheme: {parsed_url.scheme}. "
+                        "Use stdio: for subprocess, or http(s):// for network servers."
+                    )
+                print(f"[DEBUG] Sending GET request to {server_url}")
+                response = requests.get(server_url, timeout=10)
+                response.raise_for_status()
+                tools_data = response.json()
+                print(f"[DEBUG] Received tools data: {tools_data}")
+                self._available_tools = self._parse_tools(tools_data)
+
+        except RequestException as e:
+            raise RailLockError(f"Failed to connect to server: {str(e)}")
+        except json.JSONDecodeError:
+            raise RailLockError("Invalid response format from server")
+        except subprocess.SubprocessError as e:
+            raise RailLockError(f"Failed to start stdio process: {str(e)}")
+
     async def connect_stdio_async(self, server_url: str) -> None:
         self._server_name = server_url
+
         try:
             from mcp.client.stdio import stdio_client
             from mcp import ClientSession
@@ -66,7 +97,11 @@ class RailLockClient:
 
             cmd = server_url[6:].split()
             print(f"[DEBUG] Launching stdio server (async): {cmd}")
-            server_params = StdioServerParameters(command=cmd[0], args=cmd[1:])
+            # Pass the current environment to the subprocess
+            server_params = StdioServerParameters(
+                command=cmd[0], args=cmd[1:], env=os.environ.copy()
+            )
+
             async with stdio_client(server_params) as (read_stream, write_stream):
                 print("[DEBUG] Opened stdio_client context (async)")
                 async with ClientSession(read_stream, write_stream) as session:
@@ -77,6 +112,7 @@ class RailLockClient:
                     print("[DEBUG] Session initialized (async)")
                     response = await session.list_tools()
                     print(f"[DEBUG] list_tools() response: {response}")
+
                     # Convert list of tool objects to {name: {description: ...}}
                     tools_dict = {
                         tool.name: {"description": getattr(tool, "description", "")}
@@ -85,6 +121,10 @@ class RailLockClient:
                     }
                     self._available_tools = self._parse_tools(tools_dict)
                     print(f"[DEBUG] Parsed tools: {self._available_tools}")
+
+        except asyncio.TimeoutError as e:
+            print(f"[DEBUG] Timeout during stdio connection: {e}")
+            raise RailLockError("Connection to stdio server timed out")
         except Exception as e:
             print(f"[DEBUG] Exception during async stdio connection: {e}")
             raise RailLockError(

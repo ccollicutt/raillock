@@ -41,11 +41,8 @@ jobs:
       - name: Install uv
         run: pip install uv
 
-      - name: Create virtual environment for main project
-        run: uv venv .venv --python 3.11
-
       - name: Set up dependencies with uv
-        run: uv sync --dev
+        run: uv sync --dev --python 3.11
 
       - name: "Debug: pip show mcp"
         run: uv run pip show mcp || echo 'mcp NOT installed'

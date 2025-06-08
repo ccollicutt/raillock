@@ -8,6 +8,11 @@ from unittest.mock import Mock, AsyncMock, patch, MagicMock
 from starlette.applications import Starlette
 from starlette.testclient import TestClient
 from starlette.requests import Request
+import sys
+
+sys.path.insert(
+    0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../src"))
+)
 
 from raillock.cli.commands.web.app import create_app
 from raillock.cli.commands.web.api import (

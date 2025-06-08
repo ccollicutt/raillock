@@ -1,11 +1,15 @@
 import sys
+import os
+
+sys.path.insert(
+    0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../src"))
+)
 import time
 import subprocess
 import pytest
 import asyncio
 import requests
 import socket
-import os
 import signal
 from raillock.client import RailLockClient, RailLockConfig
 from raillock.mcp_utils import get_tools_via_sse

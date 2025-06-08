@@ -1,3 +1,9 @@
+import sys
+import os
+
+sys.path.insert(
+    0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../src"))
+)
 import pytest
 import requests
 from unittest.mock import patch, MagicMock, AsyncMock
@@ -7,7 +13,6 @@ from raillock.exceptions import RailLockError
 from raillock.config_utils import compare_config_with_server
 import json
 import shutil
-import os
 from raillock.utils import calculate_tool_checksum
 
 

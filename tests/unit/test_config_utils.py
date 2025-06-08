@@ -1,5 +1,11 @@
 """Tests for the config utilities module."""
 
+import sys
+import os
+
+sys.path.insert(
+    0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../src"))
+)
 import pytest
 import tempfile
 import os

@@ -44,11 +44,9 @@ class RailLockClient:
                         f"Invalid server URL scheme: {parsed_url.scheme}. "
                         "Use stdio: for subprocess, or http(s):// for network servers."
                     )
-                print(f"[DEBUG] Sending GET request to {server_url}")
                 response = requests.get(server_url, timeout=10)
                 response.raise_for_status()
                 tools_data = response.json()
-                print(f"[DEBUG] Received tools data: {tools_data}")
                 self._available_tools = self._parse_tools(tools_data)
 
         except RequestException as e:
@@ -73,11 +71,9 @@ class RailLockClient:
                         f"Invalid server URL scheme: {parsed_url.scheme}. "
                         "Use stdio: for subprocess, or http(s):// for network servers."
                     )
-                print(f"[DEBUG] Sending GET request to {server_url}")
                 response = requests.get(server_url, timeout=10)
                 response.raise_for_status()
                 tools_data = response.json()
-                print(f"[DEBUG] Received tools data: {tools_data}")
                 self._available_tools = self._parse_tools(tools_data)
 
         except RequestException as e:
@@ -96,22 +92,15 @@ class RailLockClient:
             from mcp import StdioServerParameters
 
             cmd = server_url[6:].split()
-            print(f"[DEBUG] Launching stdio server (async): {cmd}")
             # Pass the current environment to the subprocess
             server_params = StdioServerParameters(
                 command=cmd[0], args=cmd[1:], env=os.environ.copy()
             )
 
             async with stdio_client(server_params) as (read_stream, write_stream):
-                print("[DEBUG] Opened stdio_client context (async)")
                 async with ClientSession(read_stream, write_stream) as session:
-                    print(
-                        "[DEBUG] ClientSession context entered, initializing session (async)"
-                    )
                     await session.initialize()
-                    print("[DEBUG] Session initialized (async)")
                     response = await session.list_tools()
-                    print(f"[DEBUG] list_tools() response: {response}")
 
                     # Convert list of tool objects to {name: {description: ...}}
                     tools_dict = {
@@ -120,13 +109,10 @@ class RailLockClient:
                         if hasattr(tool, "name")
                     }
                     self._available_tools = self._parse_tools(tools_dict)
-                    print(f"[DEBUG] Parsed tools: {self._available_tools}")
 
         except asyncio.TimeoutError as e:
-            print(f"[DEBUG] Timeout during stdio connection: {e}")
             raise RailLockError("Connection to stdio server timed out")
         except Exception as e:
-            print(f"[DEBUG] Exception during async stdio connection: {e}")
             raise RailLockError(
                 f"Failed to communicate with stdio process (async): {str(e)}"
             )
@@ -160,9 +146,7 @@ class RailLockClient:
         return parsed_tools
 
     def _is_tool_allowed(self, tool_name: str, tool_data: dict) -> bool:
-        debug_print(f"_is_tool_allowed called for {tool_name}")
         if tool_name not in self.config.allowed_tools:
-            debug_print(f"{tool_name} not in allowed_tools")
             return False
         allowed_val = self.config.allowed_tools[tool_name]
         if isinstance(allowed_val, dict):
@@ -174,18 +158,13 @@ class RailLockClient:
         actual_checksum = calculate_tool_checksum(
             tool_name, tool_data["description"], server_name
         )
-        result = actual_checksum == expected_checksum
-        debug_print(
-            f"{tool_name}: expected_checksum={expected_checksum}, actual_checksum={actual_checksum}, match={result}"
-        )
-        return result
+        return actual_checksum == expected_checksum
 
     def _calculate_checksum(self, tool_name: str, description: str) -> str:
         """Calculate the checksum for a tool."""
         return calculate_tool_checksum(tool_name, description, self._server_name)
 
     def filter_tools(self, tools):
-        debug_print("filter_tools called")
         allowed = set(self.config.allowed_tools)
         malicious = set(self.config.malicious_tools)
         denied = set(self.config.denied_tools)
@@ -200,11 +179,6 @@ class RailLockClient:
             checksum_ok = self._is_tool_allowed(
                 name, {"description": desc, "checksum": checksum}
             )
-            debug_print(f"Tool: {name}")
-            debug_print(f"  Allowed in config: {is_allowed}")
-            debug_print(f"  Malicious in config: {is_malicious}")
-            debug_print(f"  Denied in config: {is_denied}")
-            debug_print(f"  Checksum matches: {checksum_ok}")
             if is_allowed and not is_malicious and not is_denied and checksum_ok:
                 filtered.append(tool)
         return filtered

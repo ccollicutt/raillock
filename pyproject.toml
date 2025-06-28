@@ -1,6 +1,6 @@
 [project]
 name = "raillock"
-version = "0.1.5"
+version = "0.1.6"
 description = "A Python library and CLI for MCP tool validation and review."
 authors = [
     { name = "Curtis Collicutt", email = "curtis@serverascode.com" }
@@ -14,7 +14,8 @@ dependencies = [
     "pyyaml",
     "starlette",
     "uvicorn",
-    "jinja2"
+    "jinja2",
+    "tabulate"
 ]
 
 [project.urls]

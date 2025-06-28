@@ -9,19 +9,28 @@ from raillock.cli.commands.webserver import run_webserver
 def main():
     """Main CLI entry point."""
     parser = argparse.ArgumentParser(
-        description="""RailLock CLI\n\nExamples:\n  raillock review --server http://localhost:8000\n  raillock review --server http://localhost:8000/sse --sse\n  raillock review --server stdio:my_server_executable\n  raillock review --server http://localhost:8000/sse --sse --yes\n  raillock review --server stdio:my_server_executable --yes\n  raillock compare --server http://localhost:8000/sse --config raillock_config.yaml\n  raillock webserver --server http://localhost:8000/sse --sse --host 0.0.0.0 --port 8080\n\nUse --yes to auto-accept all tools and generate a config file (works for SSE and stdio).\nUse webserver to start a web interface for reviewing tools.\nFor more, see the docs/cli.md\n""",
+        description="""RailLock CLI\n\nExamples:\n  raillock review --server http://localhost:8000\n  raillock review --server http://localhost:8000/sse --sse\n  raillock review --server stdio:python examples/most-basic/echo_server.py\n  raillock review --server stdio:python examples/most-basic/echo_server.py --yes\n  raillock compare --server http://localhost:8000/sse --config raillock_config.yaml\n  raillock webserver --server http://localhost:8000/sse --sse --host 0.0.0.0 --port 8080\n\nUse --yes to auto-accept all tools and generate a config file (works for SSE and stdio).\nUse webserver to start a web interface for reviewing tools.\nFor more, see the docs/cli.md\n""",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     subparsers = parser.add_subparsers(dest="command", help="Command to execute")
 
     # Review command
     review_parser = subparsers.add_parser(
-        "review", help="Review available tools and optionally generate a config file"
+        "review",
+        help="Review available tools and optionally generate a config file",
+        description="""
+examples:
+  raillock review --server http://localhost:8000
+  raillock review --server http://localhost:8000/sse --sse
+  raillock review --server \"stdio:python ./mcp-server/server.py\"
+  raillock review --server \"stdio:python ./mcp-server/server.py\" --yes
+""",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     review_parser.add_argument(
         "--server",
         required=True,
-        help="Server URL (e.g. http://localhost:8000, --sse for SSE) or stdio command (e.g. stdio:my_server_executable)",
+        help="Server URL (e.g. http://localhost:8000, --sse for SSE) or stdio command (e.g. stdio:python examples/most-basic/echo_server.py)",
     )
     review_parser.add_argument("--sse", action="store_true", help="Use SSE transport")
     review_parser.add_argument("--config", help="Configuration file path")

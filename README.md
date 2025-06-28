@@ -35,7 +35,9 @@ We are looking for feedback from users!
 With UV:
 
 ```bash
-pip install uv
+git clone https://github.com/ccollicutt/raillock.git
+cd raillock
+pipx install uv
 uv venv .venv --python 3.11
 source .venv/bin/activate
 uv sync
@@ -74,6 +76,8 @@ raillock compare --server http://localhost:8000 --config raillock_config.yaml
 ```
 
 #### Web Interface
+
+![RailLock Web Interface](img/web-gui.png)
 
 RailLock includes a web interface for easier tool management and configuration:
 
